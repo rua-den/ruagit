@@ -20,5 +20,11 @@ namespace SourceGit.Commands
 
             Args = builder.ToString();
         }
+
+        public Clone(string ctx, string path, string url, string localName, string sshKey, string extraArgs, Models.GitHubAccount account)
+            : this(ctx, path, url, localName, sshKey, extraArgs)
+        {
+            ApplyGitHubCredential(account);
+        }
     }
 }

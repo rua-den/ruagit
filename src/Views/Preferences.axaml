@@ -938,6 +938,14 @@
             </ContentControl>
           </Grid>
         </TabItem>
+
+        <TabItem>
+          <TabItem.Header>
+            <TextBlock Classes="tab_header" Text="{DynamicResource Text.Preferences.GitHubAccounts}"/>
+          </TabItem.Header>
+          <v:GitHubAccounts DataContext="{Binding GitHubAccountsViewModel}"/>
+        </TabItem>
+
       </TabControl>
     </Border>
   </Grid>

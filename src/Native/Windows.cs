@@ -369,6 +369,194 @@ namespace SourceGit.Native
             return string.Empty;
         }
         #endregion
+
+        public bool ProtectData(byte[] data, out byte[] protectedData)
+        {
+            protectedData = null;
+            try
+            {
+                var input = new DATA_BLOB { cbData = data.Length, pbData = Marshal.AllocHGlobal(data.Length) };
+                Marshal.Copy(data, 0, input.pbData, data.Length);
+                var output = new DATA_BLOB();
+                try
+                {
+                    // CRYPTPROTECT_UI_FORBIDDEN: no UI may be shown.
+                    if (CryptProtectData(ref input, "SourceGit", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                            CRYPTPROTECT_UI_FORBIDDEN, ref output))
+                    {
+                        protectedData = new byte[output.cbData];
+                        Marshal.Copy(output.pbData, protectedData, 0, output.cbData);
+                        return true;
+                    }
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(input.pbData);
+                    if (output.pbData != IntPtr.Zero)
+                        Marshal.FreeHGlobal(output.pbData);
+                }
+            }
+            catch
+            {
+            }
+            return false;
+        }
+
+        public bool UnprotectData(byte[] protectedData, out byte[] data)
+        {
+            data = null;
+            try
+            {
+                var input = new DATA_BLOB { cbData = protectedData.Length, pbData = Marshal.AllocHGlobal(protectedData.Length) };
+                Marshal.Copy(protectedData, 0, input.pbData, protectedData.Length);
+                var output = new DATA_BLOB();
+                try
+                {
+                    if (CryptUnprotectData(ref input, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                            CRYPTPROTECT_UI_FORBIDDEN, ref output))
+                    {
+                        data = new byte[output.cbData];
+                        Marshal.Copy(output.pbData, data, 0, output.cbData);
+                        return true;
+                    }
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(input.pbData);
+                    if (output.pbData != IntPtr.Zero)
+                        Marshal.FreeHGlobal(output.pbData);
+                }
+            }
+            catch
+            {
+            }
+            return false;
+        }
+
+        public bool DeleteCredential(string key)
+        {
+            try
+            {
+                var file = GetCredentialFilePath(key);
+                if (File.Exists(file))
+                    File.Delete(file);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string GetCredentialFilePath(string key)
+        {
+            var safeKey = key.Replace('/', '_').Replace('\\', '_').Replace(':', '_');
+            var dir = Path.Combine(OS.DataDir, "credentials");
+            if (!Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            return Path.Combine(dir, $"{safeKey}.dat");
+        }
+
+        private const int CRYPTPROTECT_UI_FORBIDDEN = 0x1;
+
+        public List<Models.GitHubCredentialEntry> FindStoredGitHubCredentials()
+        {
+            var results = new List<Models.GitHubCredentialEntry>();
+
+            if (!CredEnumerate("git:*", 0, out var count, out var pCredentials))
+                return results;
+
+            try
+            {
+                for (var i = 0; i < count; i++)
+                {
+                    var credPtr = Marshal.ReadIntPtr(pCredentials, i * IntPtr.Size);
+                    var cred = Marshal.PtrToStructure<CREDENTIAL>(credPtr);
+
+                    // GCM stores entries like `git:https://github.com`.
+                    if (string.IsNullOrEmpty(cred.TargetName) ||
+                        !cred.TargetName.Contains("github.com", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var secret = string.Empty;
+                    if (cred.CredentialBlob != IntPtr.Zero && cred.CredentialBlobSize > 0)
+                    {
+                        var bytes = new byte[cred.CredentialBlobSize];
+                        Marshal.Copy(cred.CredentialBlob, bytes, 0, bytes.Length);
+                        secret = Encoding.UTF8.GetString(bytes);
+                    }
+
+                    if (string.IsNullOrEmpty(secret))
+                        continue;
+
+                    results.Add(new Models.GitHubCredentialEntry
+                    {
+                        Host = "github.com",
+                        Username = cred.UserName ?? string.Empty,
+                        Secret = secret,
+                    });
+                }
+            }
+            finally
+            {
+                CredFree(pCredentials);
+            }
+
+            return results;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct CREDENTIAL
+        {
+            public int Flags;
+            public int Type;
+            public string TargetName;
+            public string Comment;
+            public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+            public int CredentialBlobSize;
+            public IntPtr CredentialBlob;
+            public int Persist;
+            public int AttributeCount;
+            public IntPtr Attributes;
+            public string TargetAlias;
+            public string UserName;
+        }
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CredEnumerate(string filter, int flag, out int count, out IntPtr pCredentials);
+
+        [DllImport("advapi32.dll")]
+        private static extern void CredFree(IntPtr buffer);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DATA_BLOB
+        {
+            public int cbData;
+            public IntPtr pbData;
+        }
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CryptProtectData(
+            ref DATA_BLOB pDataIn,
+            string szDataDescr,
+            IntPtr pOptionalEntropy,
+            IntPtr pvReserved,
+            IntPtr pPromptStruct,
+            int dwFlags,
+            ref DATA_BLOB pDataOut);
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CryptUnprotectData(
+            ref DATA_BLOB pDataIn,
+            IntPtr ppszDataDescr,
+            IntPtr pOptionalEntropy,
+            IntPtr pvReserved,
+            IntPtr pPromptStruct,
+            int dwFlags,
+            ref DATA_BLOB pDataOut);
     }
 
     [SupportedOSPlatform("windows")]

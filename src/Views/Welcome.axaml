@@ -114,7 +114,7 @@
           <DataTemplate DataType="vm:RepositoryNode">
             <Grid Background="Transparent"
                   Height="30"
-                  ColumnDefinitions="16,18,*,Auto,8"
+                  ColumnDefinitions="16,18,*,Auto,Auto,8"
                   Margin="{Binding Depth, Converter={x:Static c:IntConverters.ToTreeMargin}}"
                   ClipToBounds="True"
                   ContextRequested="OnTreeNodeContextRequested"
@@ -164,7 +164,20 @@
                       IsVisible="{Binding IsInvalid}"/>
               </StackPanel>
 
-              <ContentControl Grid.Column="3"
+              <!-- GitHub Account Badge -->
+              <Border Grid.Column="3"
+                      Margin="6,0,0,0"
+                      Padding="4,1"
+                      CornerRadius="3"
+                      Background="{DynamicResource AccentBackground}"
+                      IsVisible="{Binding BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <Path Width="12" Height="12" Data="{StaticResource Icons.GitHub}" Fill="{DynamicResource AccentForeground}"/>
+                  <TextBlock Text="{Binding BoundGitHubAccountDisplay}" FontSize="11" Foreground="{DynamicResource AccentForeground}"/>
+                </StackPanel>
+              </Border>
+
+              <ContentControl Grid.Column="4"
                               Margin="6,0,0,0"
                               Content="{Binding Status, Mode=OneWay}"
                               IsVisible="{Binding Status, Converter={x:Static ObjectConverters.NotEqual}}">

@@ -28,6 +28,12 @@ namespace SourceGit.Native
             void OpenInFileManager(string path);
             void OpenBrowser(string url);
             void OpenWithDefaultEditor(string file);
+
+            bool ProtectData(byte[] data, out byte[] protectedData);
+            bool UnprotectData(byte[] protectedData, out byte[] data);
+            bool DeleteCredential(string key);
+
+            List<Models.GitHubCredentialEntry> FindStoredGitHubCredentials();
         }
 
         public static string DataDir
@@ -273,6 +279,33 @@ namespace SourceGit.Native
         public static void OpenWithDefaultEditor(string file)
         {
             _backend.OpenWithDefaultEditor(file);
+        }
+
+        public static bool ProtectData(byte[] data, out byte[] protectedData)
+        {
+            return _backend.ProtectData(data, out protectedData);
+        }
+
+        public static bool UnprotectData(byte[] protectedData, out byte[] data)
+        {
+            return _backend.UnprotectData(protectedData, out data);
+        }
+
+        public static bool DeleteCredential(string key)
+        {
+            return _backend.DeleteCredential(key);
+        }
+
+        public static List<Models.GitHubCredentialEntry> FindStoredGitHubCredentials()
+        {
+            try
+            {
+                return _backend.FindStoredGitHubCredentials();
+            }
+            catch
+            {
+                return [];
+            }
         }
 
         public static string GetAbsPath(string root, string sub)

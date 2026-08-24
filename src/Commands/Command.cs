@@ -31,6 +31,8 @@ namespace SourceGit.Commands
         public EditorType Editor { get; set; } = EditorType.CoreEditor;
         public string SSHKey { get; set; } = string.Empty;
         public string Args { get; set; } = string.Empty;
+        public string GitHubUsername { get; set; } = string.Empty;
+        public string GitHubToken { get; set; } = string.Empty;
 
         // Only used in `ExecAsync` mode.
         public CancellationToken CancellationToken { get; set; } = CancellationToken.None;
@@ -173,15 +175,26 @@ namespace SourceGit.Commands
 
             // Force using this app as SSH askpass program
             var selfExecFile = Environment.ProcessPath;
-            start.Environment.Add("SSH_ASKPASS", selfExecFile); // Can not use parameter here, because it invoked by SSH with `exec`
-            start.Environment.Add("SSH_ASKPASS_REQUIRE", "prefer");
-            start.Environment.Add("SOURCEGIT_LAUNCH_AS_ASKPASS", "TRUE");
+            start.Environment["SSH_ASKPASS"] = selfExecFile; // Can not use parameter here, because it invoked by SSH with `exec`
+            start.Environment["SSH_ASKPASS_REQUIRE"] = "prefer";
+            start.Environment["SOURCEGIT_LAUNCH_AS_ASKPASS"] = "TRUE";
             if (!OperatingSystem.IsLinux())
-                start.Environment.Add("DISPLAY", "required");
+                start.Environment["DISPLAY"] = "required";
+
+            // If a GitHub account credential was provided, answers git's username/password
+            // prompts headlessly via askpass. Values are passed by env to avoid leaking into logs.
+            if (!string.IsNullOrEmpty(GitHubToken))
+            {
+                start.Environment["GIT_ASKPASS"] = selfExecFile;
+                start.Environment["SOURCEGIT_GITHUB_ASKPASS_USERNAME"] =
+                    string.IsNullOrEmpty(GitHubUsername) ? "x-access-token" : GitHubUsername;
+                start.Environment["SOURCEGIT_GITHUB_ASKPASS_TOKEN"] = GitHubToken;
+                start.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            }
 
             // If an SSH private key was provided, sets the environment.
             if (!start.Environment.ContainsKey("GIT_SSH_COMMAND") && !string.IsNullOrEmpty(SSHKey))
-                start.Environment.Add("GIT_SSH_COMMAND", $"ssh -i '{SSHKey}' -o AddKeysToAgent=yes");
+                start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey}' -o AddKeysToAgent=yes";
 
             // Force using en_US.UTF-8 locale
             if (OperatingSystem.IsLinux())
@@ -191,10 +204,20 @@ namespace SourceGit.Commands
             }
 
             var builder = new StringBuilder(2048);
-            builder
-                .Append("--no-pager -c core.quotepath=off -c credential.helper=")
-                .Append(Native.OS.CredentialHelper)
-                .Append(' ');
+            if (string.IsNullOrEmpty(GitHubToken))
+            {
+                builder
+                    .Append("--no-pager -c core.quotepath=off -c credential.helper=")
+                    .Append(Native.OS.CredentialHelper)
+                    .Append(' ');
+            }
+            else
+            {
+                // Bypass credential manager (incl. any globally configured helper):
+                // empty helper forces git to fall back to our askpass, which provides
+                // the bound account's token directly.
+                builder.Append("--no-pager -c core.quotepath=off -c credential.helper= ");
+            }
 
             switch (Editor)
             {
@@ -222,6 +245,31 @@ namespace SourceGit.Commands
         protected void RaiseException(string error)
         {
             Models.Notification.Send(Context, error, true);
+        }
+
+        protected Models.GitHubAccount FindBoundGitHubAccount()
+        {
+            return Services.GitHubCredential.FindForRepository(WorkingDirectory);
+        }
+
+        protected void ApplyGitHubCredential(Models.GitHubAccount account)
+        {
+            if (account == null)
+                return;
+
+            if (account.AuthType == Models.GitHubAuthType.PersonalAccessToken)
+            {
+                var token = Services.CredentialManager.GetToken(account.Id);
+                if (!string.IsNullOrEmpty(token))
+                {
+                    GitHubUsername = account.Username;
+                    GitHubToken = token;
+                }
+            }
+            else if (account.AuthType == Models.GitHubAuthType.SSHKey && string.IsNullOrEmpty(SSHKey))
+            {
+                SSHKey = account.SSHKeyPath;
+            }
         }
 
         private void HandleOutput(string line, List<string> errs)

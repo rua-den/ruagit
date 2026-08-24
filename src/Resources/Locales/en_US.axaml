@@ -141,6 +141,7 @@
   <x:String x:Key="Text.Clone.ParentFolder" xml:space="preserve">Parent Folder:</x:String>
   <x:String x:Key="Text.Clone.RecurseSubmodules" xml:space="preserve">Initialize &amp; update submodules</x:String>
   <x:String x:Key="Text.Clone.RemoteURL" xml:space="preserve">Repository URL:</x:String>
+  <x:String x:Key="Text.Clone.GitHubAccount" xml:space="preserve">GitHub Account:</x:String>
   <x:String x:Key="Text.Close" xml:space="preserve">CLOSE</x:String>
   <x:String x:Key="Text.CodeEditor" xml:space="preserve">Editor</x:String>
   <x:String x:Key="Text.CommandPalette.Branches" xml:space="preserve">Branches</x:String>
@@ -274,6 +275,11 @@
   <x:String x:Key="Text.Configure.Proxy.Placeholder" xml:space="preserve">HTTP proxy used by this repository</x:String>
   <x:String x:Key="Text.Configure.User" xml:space="preserve">User Name</x:String>
   <x:String x:Key="Text.Configure.User.Placeholder" xml:space="preserve">User name for this repository</x:String>
+  <x:String x:Key="Text.Configure.GitHubAccount" xml:space="preserve">GITHUB ACCOUNT</x:String>
+  <x:String x:Key="Text.Configure.GitHubAccount.AutoDetect" xml:space="preserve">Auto Detect</x:String>
+  <x:String x:Key="Text.Configure.GitHubAccount.AutoDetect.Tip" xml:space="preserve">Match repository remotes against configured accounts (explicit binding wins over auto-detection)</x:String>
+  <x:String x:Key="Text.Configure.GitHubAccount.Bind" xml:space="preserve">Bind Account:</x:String>
+  <x:String x:Key="Text.Configure.GitHubAccount.Current" xml:space="preserve">Current Binding:</x:String>
   <x:String x:Key="Text.ConfigureCustomActionControls" xml:space="preserve">Edit Custom Action Controls</x:String>
   <x:String x:Key="Text.ConfigureCustomActionControls.CheckedValue" xml:space="preserve">Checked Value:</x:String>
   <x:String x:Key="Text.ConfigureCustomActionControls.CheckedValue.Tip" xml:space="preserve">When checked, this value will be used in command-line arguments</x:String>
@@ -506,6 +512,24 @@
   <x:String x:Key="Text.GitLFS.Remote" xml:space="preserve">Remote:</x:String>
   <x:String x:Key="Text.GitLFS.Track" xml:space="preserve">Track files named '{0}'</x:String>
   <x:String x:Key="Text.GitLFS.TrackByExtension" xml:space="preserve">Track all *{0} files</x:String>
+  <x:String x:Key="Text.GitHubAccounts.Add" xml:space="preserve">Add</x:String>
+  <x:String x:Key="Text.GitHubAccounts.AutoDetect" xml:space="preserve">Auto Detect</x:String>
+  <x:String x:Key="Text.GitHubAccounts.AutoDetect.Tip" xml:space="preserve">Import GitHub accounts already stored on this machine (Git Credential Manager vault or ~/.git-credentials)</x:String>
+  <x:String x:Key="Text.GitHubAccounts.AddAccount" xml:space="preserve">Add Account</x:String>
+  <x:String x:Key="Text.GitHubAccounts.AccountNameWatermark" xml:space="preserve">Account display name (e.g., Personal, Work)</x:String>
+  <x:String x:Key="Text.GitHubAccounts.AuthType" xml:space="preserve">Auth Type:</x:String>
+  <x:String x:Key="Text.GitHubAccounts.Cancel" xml:space="preserve">Cancel</x:String>
+  <x:String x:Key="Text.GitHubAccounts.Email" xml:space="preserve">Email:</x:String>
+  <x:String x:Key="Text.GitHubAccounts.Name" xml:space="preserve">Name:</x:String>
+  <x:String x:Key="Text.GitHubAccounts.NoAccounts" xml:space="preserve">No GitHub accounts configured</x:String>
+  <x:String x:Key="Text.GitHubAccounts.PAT" xml:space="preserve">Personal Access Token</x:String>
+  <x:String x:Key="Text.GitHubAccounts.PATWatermark" xml:space="preserve">ghp_xxxxxxxxxxxx or github_pat_xxx</x:String>
+  <x:String x:Key="Text.GitHubAccounts.Save" xml:space="preserve">Save</x:String>
+  <x:String x:Key="Text.GitHubAccounts.SSHKey" xml:space="preserve">SSH Key</x:String>
+  <x:String x:Key="Text.GitHubAccounts.SSHKeyPathWatermark" xml:space="preserve">Path to private SSH key (~/.ssh/id_ed25519)</x:String>
+  <x:String x:Key="Text.GitHubAccounts.TestConnection" xml:space="preserve">Test Connection</x:String>
+  <x:String x:Key="Text.GitHubAccounts.TokenOrKey" xml:space="preserve">Token / Key:</x:String>
+  <x:String x:Key="Text.GitHubAccounts.Username" xml:space="preserve">Username:</x:String>
   <x:String x:Key="Text.GotoRevisionSelector" xml:space="preserve">Select Commit</x:String>
   <x:String x:Key="Text.Histories" xml:space="preserve">HISTORY</x:String>
   <x:String x:Key="Text.Histories.Header.Author" xml:space="preserve">AUTHOR</x:String>
@@ -712,6 +736,8 @@
   <x:String x:Key="Text.Preferences.Git.User.Placeholder" xml:space="preserve">Global git user name</x:String>
   <x:String x:Key="Text.Preferences.Git.UseStashAndReapplyByDefault" xml:space="preserve">Stash &amp; reapply changes by default when checking-out or merging branches</x:String>
   <x:String x:Key="Text.Preferences.Git.Version" xml:space="preserve">Git version</x:String>
+  <x:String x:Key="Text.Preferences.GitHubAccounts" xml:space="preserve">GITHUB ACCOUNTS</x:String>
+  <x:String x:Key="Text.Preferences.GitHubAccountsDesc" xml:space="preserve">Manage GitHub accounts used to authenticate repositories</x:String>
   <x:String x:Key="Text.Preferences.GPG" xml:space="preserve">GPG SIGNING</x:String>
   <x:String x:Key="Text.Preferences.GPG.CommitEnabled" xml:space="preserve">Commit GPG signing</x:String>
   <x:String x:Key="Text.Preferences.GPG.Format" xml:space="preserve">GPG Format</x:String>

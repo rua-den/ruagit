@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using SourceGit.Models;
+
 namespace SourceGit.ViewModels
 {
     public class RepositoryNodeMinimalInfo
@@ -83,6 +85,14 @@ namespace SourceGit.ViewModels
             get => _status;
             set => SetProperty(ref _status, value);
         }
+
+        public Models.GitHubAccount BoundGitHubAccount
+        {
+            get => _boundGitHubAccount;
+            set => SetProperty(ref _boundGitHubAccount, value);
+        }
+
+        public string BoundGitHubAccountDisplay => _boundGitHubAccount?.DisplayName ?? "—";
 
         public List<RepositoryNode> SubNodes
         {
@@ -172,6 +182,15 @@ namespace SourceGit.ViewModels
                 return;
             }
 
+            // Auto-detect bound GitHub account once per session.
+            if (!_boundDetectionDone)
+            {
+                _boundDetectionDone = true;
+                var detected = await Services.GitHubCredential.DetectForRepositoryAsync(_id).ConfigureAwait(false);
+                if (!ReferenceEquals(detected, _boundGitHubAccount))
+                    BoundGitHubAccount = detected;
+            }
+
             if (!force)
             {
                 var passed = DateTime.Now - _lastUpdateStatus;
@@ -231,6 +250,8 @@ namespace SourceGit.ViewModels
         private bool _isExpanded = false;
         private bool _isVisible = true;
         private Models.RepositoryStatus _status = null;
+        private Models.GitHubAccount _boundGitHubAccount = null;
+        private bool _boundDetectionDone = false;
         private DateTime _lastUpdateStatus = DateTime.UnixEpoch.ToLocalTime();
     }
 }

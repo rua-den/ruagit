@@ -16,6 +16,7 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="{Binding #ThisControl.CaptionHeight}"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="24"/>
     </Grid.RowDefinitions>
 
     <!-- Custom TitleBar -->
@@ -137,6 +138,41 @@
         </DataTemplate>
       </ContentControl.DataTemplates>
     </ContentControl>
+
+    <!-- Footer: active repository info -->
+    <Border Grid.Row="2"
+            Background="{DynamicResource Brush.TitleBar}"
+            BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource Brush.Border0}"
+            IsVisible="{Binding ActivePage.Node.IsRepository}">
+      <StackPanel Orientation="Horizontal" Margin="10,0" VerticalAlignment="Center" Spacing="6">
+        <Path Width="11" Height="11" VerticalAlignment="Center" Data="{StaticResource Icons.Folder}"/>
+        <TextBlock VerticalAlignment="Center"
+                   FontSize="11"
+                   Text="{Binding ActivePage.Node.Id}"/>
+
+        <Border Margin="12,0,0,0"
+                Padding="6,1"
+                CornerRadius="3"
+                VerticalAlignment="Center"
+                Background="{DynamicResource Brush.Badge}"
+                IsVisible="{Binding ActivePage.Node.BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Path Width="11" Height="11" Data="{StaticResource Icons.GitHub}" Fill="{DynamicResource Brush.BadgeFG}"/>
+            <TextBlock Text="{Binding ActivePage.Node.BoundGitHubAccountDisplay}"
+                       FontSize="11"
+                       Foreground="{DynamicResource Brush.BadgeFG}"/>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Margin="12,0,0,0"
+                   VerticalAlignment="Center"
+                   FontSize="11"
+                   Foreground="{DynamicResource Brush.FG2}"
+                   IsVisible="{Binding ActivePage.Node.BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNull}}"
+                   Text="No GitHub account detected"/>
+      </StackPanel>
+    </Border>
 
     <!-- Command Palette -->
     <Border Grid.Row="0" Grid.RowSpan="2"

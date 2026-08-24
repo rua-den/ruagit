@@ -25,6 +25,7 @@ namespace SourceGit.Commands
 
             builder.Append(remote).Append(' ').Append(local).Append(':').Append(remoteBranch);
             Args = builder.ToString();
+            ApplyGitHubCredential(FindBoundGitHubAccount());
         }
 
         public Push(string repo, string remote, string refname, bool isDelete)
@@ -41,6 +42,7 @@ namespace SourceGit.Commands
             builder.Append(remote).Append(' ').Append(refname);
 
             Args = builder.ToString();
+            ApplyGitHubCredential(FindBoundGitHubAccount());
         }
 
         public async Task<bool> RunAsync()

@@ -22,6 +22,7 @@ namespace SourceGit.Commands
                 .Append(branch);
 
             Args = builder.ToString();
+            ApplyGitHubCredential(FindBoundGitHubAccount());
         }
 
         public async Task<bool> RunAsync()

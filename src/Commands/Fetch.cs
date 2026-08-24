@@ -20,6 +20,7 @@ namespace SourceGit.Commands
             builder.Append(remote);
 
             Args = builder.ToString();
+            ResolveBoundCredential();
         }
 
         public Fetch(string repo, string remote)
@@ -31,6 +32,7 @@ namespace SourceGit.Commands
             RaiseError = false;
 
             Args = $"fetch --progress --verbose {remote}";
+            ResolveBoundCredential();
         }
 
         public Fetch(string repo, Models.Branch local, Models.Branch remote)
@@ -40,12 +42,22 @@ namespace SourceGit.Commands
             WorkingDirectory = repo;
             Context = repo;
             Args = $"fetch --progress --verbose {remote.Remote} {remote.Name}:{local.Name}";
+            ResolveBoundCredential();
         }
 
         public async Task<bool> RunAsync()
         {
             SSHKey = await new Config(WorkingDirectory).GetAsync($"remote.{_remote}.sshkey").ConfigureAwait(false);
             return await ExecAsync().ConfigureAwait(false);
+        }
+
+        private void ResolveBoundCredential()
+        {
+            // SSH key from bound account only applies when no explicit key configured yet;
+            // RunAsync may still override via git config afterwards.
+            var account = FindBoundGitHubAccount();
+            if (account?.AuthType == Models.GitHubAuthType.PersonalAccessToken)
+                ApplyGitHubCredential(account);
         }
 
         private readonly string _remote;

@@ -68,6 +68,14 @@ namespace SourceGit.Views
             e.Handled = true;
         }
 
+        private void OnAutoDetectGitHubAccount(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ViewModels.RepositoryConfigure vm)
+                vm.AutoDetectGitHubAccount();
+
+            e.Handled = true;
+        }
+
         private void OnAddGitHubIssueTracker(object sender, RoutedEventArgs e)
         {
             if (DataContext is ViewModels.RepositoryConfigure vm)
