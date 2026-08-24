@@ -530,6 +530,7 @@
   <x:String x:Key="Text.GitHubAccounts.TestConnection" xml:space="preserve">Test Connection</x:String>
   <x:String x:Key="Text.GitHubAccounts.TokenOrKey" xml:space="preserve">Token / Key:</x:String>
   <x:String x:Key="Text.GitHubAccounts.Username" xml:space="preserve">Username:</x:String>
+  <x:String x:Key="Text.RememberMyChoice" xml:space="preserve">Remember my choice</x:String>
   <x:String x:Key="Text.GotoRevisionSelector" xml:space="preserve">Select Commit</x:String>
   <x:String x:Key="Text.Histories" xml:space="preserve">HISTORY</x:String>
   <x:String x:Key="Text.Histories.Header.Author" xml:space="preserve">AUTHOR</x:String>

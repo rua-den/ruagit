@@ -249,6 +249,39 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
+        public bool RememberDealWithLocalChanges
+        {
+            get;
+            set;
+        } = false;
+
+        public int DealWithLocalChangesChoice
+        {
+            get;
+            set;
+        } = 0;
+
+        public Models.DealWithLocalChanges ResolveInitialDealWithLocalChanges()
+        {
+            if (RememberDealWithLocalChanges &&
+                DealWithLocalChangesChoice >= 0 &&
+                DealWithLocalChangesChoice <= (int)Models.DealWithLocalChanges.Discard)
+            {
+                return (Models.DealWithLocalChanges)DealWithLocalChangesChoice;
+            }
+
+            return UseStashAndReapplyByDefault ?
+                Models.DealWithLocalChanges.StashAndReapply :
+                Models.DealWithLocalChanges.DoNothing;
+        }
+
+        public void SaveDealWithLocalChangesChoice(Models.DealWithLocalChanges value, bool remember)
+        {
+            RememberDealWithLocalChanges = remember;
+            DealWithLocalChangesChoice = (int)value;
+            Save();
+        }
+
         public bool EnableAutoFetch
         {
             get;

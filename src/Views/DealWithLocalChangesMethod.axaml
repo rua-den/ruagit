@@ -50,5 +50,9 @@
                  IsChecked="False"
                  Click="OnRadioButtonClicked"
                  Tag="{Binding Source={x:Static m:DealWithLocalChanges.Discard}}"/>
+    <CheckBox Content="{DynamicResource Text.RememberMyChoice}"
+              Margin="0,4,0,0"
+              FontSize="12"
+              IsChecked="{Binding Remember, ElementName=ThisControl, Mode=TwoWay}"/>
   </StackPanel>
 </UserControl>

@@ -25,19 +25,24 @@ namespace SourceGit.ViewModels
             set;
         }
 
+        public bool Remember
+        {
+            get;
+            set;
+        }
+
         public CheckoutAndFastForward(Repository repo, Models.Branch localBranch, Models.Branch remoteBranch)
         {
             _repo = repo;
             LocalBranch = localBranch;
             RemoteBranch = remoteBranch;
 
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
         }
 
         public override async Task<bool> Sure()
         {
+            Preferences.Instance.SaveDealWithLocalChangesChoice(DealWithLocalChanges, Remember);
             using var lockWatcher = _repo.LockWatcher();
             ProgressDescription = $"Checkout and Fast-Forward '{LocalBranch.Name}' ...";
 
