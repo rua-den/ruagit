@@ -193,8 +193,9 @@ namespace SourceGit.Commands
             }
 
             // If an SSH private key was provided, sets the environment.
+            // Forward slashes keep the path safe across ssh implementations.
             if (!start.Environment.ContainsKey("GIT_SSH_COMMAND") && !string.IsNullOrEmpty(SSHKey))
-                start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey}' -o AddKeysToAgent=yes";
+                start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey.Replace('\\', '/')}' -o IdentitiesOnly=yes -o AddKeysToAgent=yes";
 
             // Force using en_US.UTF-8 locale
             if (OperatingSystem.IsLinux())

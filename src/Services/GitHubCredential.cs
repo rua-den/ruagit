@@ -34,7 +34,8 @@ namespace SourceGit.Services
         /// <summary>
         /// Resolves which configured GitHub account is used by this repository.
         /// Priority: 1) explicit binding in sourcegit.settings, 2) remote URL owner
-        /// matching a configured account's username.
+        /// matching a configured account's username, 3) for SSH remotes, the only
+        /// configured SSH-key account when there is exactly one.
         /// </summary>
         public static async System.Threading.Tasks.Task<Models.GitHubAccount> DetectForRepositoryAsync(string repoPath)
         {
@@ -47,10 +48,11 @@ namespace SourceGit.Services
             if (bound != null)
                 return bound;
 
-            // 2. Match remote URL owner against account usernames.
             try
             {
                 var remotes = await new Commands.QueryRemotes(repoPath).GetResultAsync().ConfigureAwait(false);
+
+                // 2. Match remote URL owner against account usernames.
                 foreach (var remote in remotes)
                 {
                     var owner = ExtractGitHubOwner(remote.URL);
@@ -62,6 +64,31 @@ namespace SourceGit.Services
                         if (string.Equals(acc.Username, owner, StringComparison.OrdinalIgnoreCase))
                             return acc;
                     }
+                }
+
+                // 3. SSH remotes: an SSH key cannot be matched by username, so when
+                // exactly one SSH-key account is configured, assume it.
+                var hasSshRemote = remotes.Exists(r =>
+                    r.URL.StartsWith("git@", StringComparison.OrdinalIgnoreCase) ||
+                    r.URL.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase));
+                if (hasSshRemote)
+                {
+                    Models.GitHubAccount singleSsh = null;
+                    foreach (var acc in pref.GitHubAccounts)
+                    {
+                        if (acc.AuthType == Models.GitHubAuthType.SSHKey &&
+                            !string.IsNullOrWhiteSpace(acc.SSHKeyPath))
+                        {
+                            if (singleSsh != null)
+                            {
+                                singleSsh = null;
+                                break;
+                            }
+                            singleSsh = acc;
+                        }
+                    }
+                    if (singleSsh != null)
+                        return singleSsh;
                 }
             }
             catch
