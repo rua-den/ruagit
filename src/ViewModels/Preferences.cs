@@ -253,13 +253,13 @@ namespace SourceGit.ViewModels
         {
             get;
             set;
-        } = false;
+        } = true;
 
         public int AutoFetchInterval
         {
             get;
             set;
-        } = 10;
+        } = 5;
 
         public bool IgnoreWhitespaceChangesInDiff
         {
