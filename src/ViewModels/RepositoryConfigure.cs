@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 
 using Avalonia.Collections;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+
+using SourceGit.Models;
 
 namespace SourceGit.ViewModels
 {
@@ -152,6 +155,49 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _selectedCustomAction, value);
         }
 
+        public Models.GitHubAccount BoundGitHubAccount
+        {
+            get => _boundAccount;
+            set
+            {
+                if (SetProperty(ref _boundAccount, value))
+                {
+                    _repo.Settings.GitHubAccountId = value?.Id ?? Guid.Empty;
+                    _repo.Settings.Save();
+                    OnPropertyChanged(nameof(BoundGitHubAccountDisplay));
+                }
+            }
+        }
+
+        public string BoundGitHubAccountDisplay => _boundAccount?.DisplayName ?? "—";
+
+        public void AutoDetectGitHubAccount()
+        {
+            Task.Run(async () =>
+            {
+                var detected = await Services.GitHubCredential.DetectForRepositoryAsync(_repo.FullPath).ConfigureAwait(false);
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (detected == null)
+                    {
+                        Models.Notification.Send(_repo.FullPath,
+                            "No matching GitHub account found from repository remotes.", false);
+                    }
+                    else
+                    {
+                        BoundGitHubAccount = detected;
+                        Models.Notification.Send(_repo.FullPath,
+                            $"Auto-detected GitHub account: {detected.DisplayName}", false);
+                    }
+                });
+            });
+        }
+
+        public Avalonia.Collections.AvaloniaList<Models.GitHubAccount> AvailableGitHubAccounts
+        {
+            get;
+        } = Preferences.Instance.GitHubAccounts;
+
         public RepositoryConfigure(Repository repo)
         {
             _repo = repo;
@@ -192,6 +238,13 @@ namespace SourceGit.ViewModels
                     RegexString = rule.RegexString,
                     URLTemplate = rule.URLTemplate,
                 });
+            }
+
+            var accountId = _repo.Settings.GitHubAccountId;
+            if (accountId != Guid.Empty)
+            {
+                _boundAccount = Preferences.Instance.GetGitHubAccount(accountId);
+                OnPropertyChanged(nameof(BoundGitHubAccountDisplay));
             }
         }
 
@@ -353,5 +406,6 @@ namespace SourceGit.ViewModels
         private Models.CommitTemplate _selectedCommitTemplate = null;
         private Models.IssueTracker _selectedIssueTracker = null;
         private Models.CustomAction _selectedCustomAction = null;
+        private Models.GitHubAccount _boundAccount = null;
     }
 }

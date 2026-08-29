@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+
+using SourceGit.Models;
 
 namespace SourceGit.ViewModels
 {
-    public class Clone : Popup
+    public partial class Clone : Popup
     {
         [Required(ErrorMessage = "Remote URL is required")]
         [CustomValidation(typeof(Clone), nameof(ValidateRemote))]
@@ -16,7 +19,14 @@ namespace SourceGit.ViewModels
             set
             {
                 if (SetProperty(ref _remote, value, true))
+                {
                     UseSSH = Models.Remote.IsSSH(value);
+                    OnPropertyChanged(nameof(IsGitHubRemote));
+
+                    // Pre-select the default account so private repos clone with proper credentials.
+                    if (IsGitHubRemote && _selectedGitHubAccount == null)
+                        SelectedGitHubAccount = Preferences.Instance.GetDefaultGitHubAccount();
+                }
             }
         }
 
@@ -69,6 +79,60 @@ namespace SourceGit.ViewModels
             set => SetProperty(ref _extraArgs, value);
         }
 
+        public Avalonia.Collections.AvaloniaList<Models.GitHubAccount> AvailableGitHubAccounts
+        {
+            get;
+        } = Preferences.Instance.GitHubAccounts;
+
+        public Models.GitHubAccount SelectedGitHubAccount
+        {
+            get => _selectedGitHubAccount;
+            set
+            {
+                if (SetProperty(ref _selectedGitHubAccount, value))
+                    AlignRemoteWithAccount();
+            }
+        }
+
+        /// <summary>
+        /// SSH keys can only authenticate the SSH protocol, tokens only HTTPS.
+        /// Rewrites the github.com URL so its protocol matches the selected account.
+        /// </summary>
+        private void AlignRemoteWithAccount()
+        {
+            if (_selectedGitHubAccount == null || string.IsNullOrWhiteSpace(_remote))
+                return;
+
+            if (!_remote.Contains("github.com", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var toSsh = _selectedGitHubAccount.AuthType == GitHubAuthType.SSHKey;
+            var converted = ConvertGitHubUrl(_remote, toSsh);
+            if (!string.IsNullOrEmpty(converted) && converted != _remote)
+                Remote = converted;
+        }
+
+        public static string ConvertGitHubUrl(string url, bool toSsh)
+        {
+            var trimmed = url.Trim().TrimEnd('/');
+            if (toSsh)
+            {
+                var m = REG_GITHUB_HTTPS_URL().Match(trimmed);
+                return m.Success ? $"git@github.com:{m.Groups[1].Value}.git" : null;
+            }
+
+            var s = REG_GITHUB_SSH_URL().Match(trimmed);
+            return s.Success ? $"https://github.com/{s.Groups[1].Value}.git" : null;
+        }
+
+        [GeneratedRegex(@"^https?://github\.com/([\w\.\-]+/[\w\.\-]+?)(?:\.git)?$", RegexOptions.IgnoreCase)]
+        private static partial Regex REG_GITHUB_HTTPS_URL();
+
+        [GeneratedRegex(@"^git@github\.com:([\w\.\-]+/[\w\.\-]+?)(?:\.git)?$", RegexOptions.IgnoreCase)]
+        private static partial Regex REG_GITHUB_SSH_URL();
+
+        public bool IsGitHubRemote => !string.IsNullOrEmpty(_remote) && _remote.Contains("github.com", StringComparison.Ordinal);
+
         public bool InitAndUpdateSubmodules
         {
             get;
@@ -108,10 +172,24 @@ namespace SourceGit.ViewModels
         {
             ProgressDescription = "Clone ...";
 
+            // Normalize parent folder: strip trailing slashes / whitespace so
+            // Process.Start never receives a malformed working directory.
+            try
+            {
+                _parentFolder = Path.GetFullPath(_parentFolder.Trim().TrimEnd('/', '\\'));
+            }
+            catch
+            {
+                // Keep original value; validation should have caught invalid paths.
+            }
+
+            // Final protocol alignment: SSH accounts must clone over SSH, token accounts over HTTPS.
+            AlignRemoteWithAccount();
+
             var log = new CommandLog("Clone");
             Use(log);
 
-            var succ = await new Commands.Clone(_pageId, _parentFolder, _remote, _local, _useSSH ? _sshKey : "", _extraArgs)
+            var succ = await new Commands.Clone(_pageId, _parentFolder, _remote, _local, _useSSH ? _sshKey : "", _extraArgs, _selectedGitHubAccount)
                 .Use(log)
                 .ExecAsync();
             if (!succ)
@@ -157,6 +235,14 @@ namespace SourceGit.ViewModels
 
             log.Complete();
 
+            // Bind GitHub account if selected
+            if (_selectedGitHubAccount != null)
+            {
+                var settings = Models.RepositorySettings.Get(Path.Combine(path, ".git"));
+                settings.GitHubAccountId = _selectedGitHubAccount.Id;
+                settings.Save();
+            }
+
             var parent = _selectedGroup is { Id: not "" } ? _selectedGroup : null;
             var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(path, parent, true);
             node.Bookmark = _bookmark;
@@ -199,5 +285,6 @@ namespace SourceGit.ViewModels
         private string _extraArgs = string.Empty;
         private RepositoryNode _selectedGroup = null;
         private int _bookmark = 0;
+        private Models.GitHubAccount _selectedGitHubAccount = null;
     }
 }

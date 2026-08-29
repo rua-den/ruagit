@@ -20,15 +20,19 @@ namespace SourceGit.ViewModels
             set;
         }
 
+        public bool Remember
+        {
+            get;
+            set;
+        }
+
         public CheckoutDetached(Repository repo, Models.Commit commit)
         {
             _repo = repo;
             _revision = commit.SHA;
 
             Target = commit;
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
         }
 
         public CheckoutDetached(Repository repo, Models.Tag tag)
@@ -37,13 +41,12 @@ namespace SourceGit.ViewModels
             _revision = tag.SHA;
 
             Target = tag;
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
         }
 
         public override async Task<bool> Sure()
         {
+            Preferences.Instance.SaveDealWithLocalChangesChoice(DealWithLocalChanges, Remember);
             using var lockWatcher = _repo.LockWatcher();
             ProgressDescription = $"Checkout Commit '{_revision}' ...";
 

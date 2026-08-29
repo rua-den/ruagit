@@ -487,7 +487,9 @@ namespace SourceGit.ViewModels
             _stashesPage = new StashesPage(this);
             _searchCommitContext = new SearchCommitContext(this);
             _selectedViewIndex = Preferences.Instance.ShowLocalChangesByDefault ? 1 : 0;
-            _lastFetchTime = DateTime.Now;
+            // Force an immediate fetch on the first timer tick so the repository
+            // opens with fresh remote state instead of requiring a manual fetch.
+            _lastFetchTime = DateTime.MinValue;
             _autoFetchTimer = new Timer(AutoFetchByTimer, null, 5000, 5000);
             RefreshAll();
         }

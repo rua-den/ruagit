@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
 
 using Avalonia;
 using Avalonia.Controls;
@@ -112,6 +113,110 @@ namespace SourceGit.Native
         public void OpenWithDefaultEditor(string file)
         {
             Process.Start("open", file.Quoted());
+        }
+
+        public bool ProtectData(byte[] data, out byte[] protectedData)
+        {
+            protectedData = null;
+            try
+            {
+                var encoded = Convert.ToBase64String(data);
+                var account = "SourceGit";
+                var service = "sourcegit";
+                var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "/usr/bin/security",
+                    Arguments = $"add-generic-password -a {account} -s {service} -w {encoded.Quoted()} -T \"\" -U",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                });
+                proc?.WaitForExit();
+                if (proc?.ExitCode == 0)
+                {
+                    protectedData = Encoding.UTF8.GetBytes("keychain");
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            protectedData = Encoding.UTF8.GetBytes(Convert.ToBase64String(data));
+            return true;
+        }
+
+        public bool UnprotectData(byte[] protectedData, out byte[] data)
+        {
+            data = null;
+            try
+            {
+                if (protectedData != null && protectedData.Length > 0)
+                {
+                    var marker = Encoding.UTF8.GetString(protectedData);
+                    if (marker == "keychain")
+                    {
+                        var account = "SourceGit";
+                        var service = "sourcegit";
+                        var proc = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "/usr/bin/security",
+                            Arguments = $"find-generic-password -a {account} -s {service} -w",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                        });
+                        if (proc != null)
+                        {
+                            var output = proc.StandardOutput.ReadToEnd().Trim();
+                            proc.WaitForExit();
+                            if (proc.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                            {
+                                data = Convert.FromBase64String(output);
+                                return true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        data = Convert.FromBase64String(marker);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return false;
+        }
+
+        public bool DeleteCredential(string key)
+        {
+            try
+            {
+                var account = "SourceGit";
+                var service = $"sourcegit_{key}";
+                var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "/usr/bin/security",
+                    Arguments = $"delete-generic-password -a {account} -s {service}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+                proc?.WaitForExit();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public List<Models.GitHubCredentialEntry> FindStoredGitHubCredentials()
+        {
+            // Keychain dump requires per-item ACL prompts; not supported yet.
+            return [];
         }
     }
 

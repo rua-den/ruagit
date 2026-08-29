@@ -48,6 +48,12 @@ namespace SourceGit.Models
             set;
         } = "---";
 
+        public Guid GitHubAccountId
+        {
+            get;
+            set;
+        } = Guid.Empty;
+
         public AvaloniaList<CommitTemplate> CommitTemplates
         {
             get;

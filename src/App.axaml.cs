@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -446,6 +447,33 @@ namespace SourceGit
             var args = desktop.Args;
             if (args?.Length > 0)
             {
+                // Headless mode: a bound GitHub account provides credentials directly
+                // without showing any UI.
+                var token = Environment.GetEnvironmentVariable("SOURCEGIT_GITHUB_ASKPASS_TOKEN");
+                if (!string.IsNullOrEmpty(token))
+                {
+                    var prompt = args[0];
+                    var answer = prompt.Contains("username", StringComparison.OrdinalIgnoreCase)
+                        ? Environment.GetEnvironmentVariable("SOURCEGIT_GITHUB_ASKPASS_USERNAME") ?? "x-access-token"
+                        : token;
+
+                    var outStream = Console.OpenStandardOutput();
+                    var passBytes = System.Text.Encoding.UTF8.GetBytes(answer);
+                    try
+                    {
+                        outStream.Write(passBytes, 0, passBytes.Length);
+                        outStream.WriteByte((byte)'\n');
+                        outStream.Flush();
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(passBytes);
+                    }
+
+                    Environment.Exit(0);
+                    return true;
+                }
+
                 var askpass = new Views.Askpass();
                 askpass.TxtDescription.Text = args[0];
                 desktop.MainWindow = askpass;

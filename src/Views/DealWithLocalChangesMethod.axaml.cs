@@ -13,10 +13,20 @@ namespace SourceGit.Views
                 static o => o.Method,
                 static (o, v) => o.Method = v);
 
+        public static readonly StyledProperty<bool> RememberProperty =
+            AvaloniaProperty.Register<DealWithLocalChangesMethod, bool>(
+                nameof(Remember));
+
         public Models.DealWithLocalChanges Method
         {
             get => _method;
             set => SetAndRaise(MethodProperty, ref _method, value);
+        }
+
+        public bool Remember
+        {
+            get => GetValue(RememberProperty);
+            set => SetValue(RememberProperty, value);
         }
 
         public DealWithLocalChangesMethod()

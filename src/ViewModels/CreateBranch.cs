@@ -31,6 +31,12 @@ namespace SourceGit.ViewModels
             set;
         }
 
+        public bool Remember
+        {
+            get;
+            set;
+        }
+
         public bool CheckoutAfterCreated
         {
             get => _repo.UIStates.CheckoutBranchOnCreateBranch;
@@ -77,9 +83,7 @@ namespace SourceGit.ViewModels
                 Name = branch.Name;
 
             BasedOn = branch;
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
             UpdateOverrideTip();
         }
 
@@ -91,9 +95,7 @@ namespace SourceGit.ViewModels
             _head = commit.SHA;
 
             BasedOn = commit;
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
             UpdateOverrideTip();
         }
 
@@ -105,9 +107,7 @@ namespace SourceGit.ViewModels
             _head = tag.SHA;
 
             BasedOn = tag;
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
             UpdateOverrideTip();
         }
 
@@ -132,6 +132,7 @@ namespace SourceGit.ViewModels
 
         public override async Task<bool> Sure()
         {
+            Preferences.Instance.SaveDealWithLocalChangesChoice(DealWithLocalChanges, Remember);
             using var lockWatcher = _repo.LockWatcher();
 
             var log = _repo.CreateLog($"Create Branch '{_name}'");

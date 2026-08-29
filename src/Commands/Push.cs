@@ -25,6 +25,7 @@ namespace SourceGit.Commands
 
             builder.Append(remote).Append(' ').Append(local).Append(':').Append(remoteBranch);
             Args = builder.ToString();
+            ApplyGitHubCredential(FindBoundGitHubAccount());
         }
 
         public Push(string repo, string remote, string refname, bool isDelete)
@@ -41,11 +42,16 @@ namespace SourceGit.Commands
             builder.Append(remote).Append(' ').Append(refname);
 
             Args = builder.ToString();
+            ApplyGitHubCredential(FindBoundGitHubAccount());
         }
 
         public async Task<bool> RunAsync()
         {
-            SSHKey = await new Config(WorkingDirectory).GetAsync($"remote.{_remote}.sshkey").ConfigureAwait(false);
+            var configuredKey = await new Config(WorkingDirectory).GetAsync($"remote.{_remote}.sshkey").ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(configuredKey))
+                SSHKey = configuredKey;
+            else if (string.IsNullOrEmpty(SSHKey))
+                ApplyGitHubCredential(await Services.GitHubCredential.DetectForRepositoryAsync(WorkingDirectory).ConfigureAwait(false));
             return await ExecAsync().ConfigureAwait(false);
         }
 

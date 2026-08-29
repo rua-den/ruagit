@@ -20,18 +20,23 @@ namespace SourceGit.ViewModels
             set;
         }
 
+        public bool Remember
+        {
+            get;
+            set;
+        }
+
         public Checkout(Repository repo, Models.Branch branch)
         {
             _repo = repo;
             _branch = branch;
 
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
         }
 
         public override async Task<bool> Sure()
         {
+            Preferences.Instance.SaveDealWithLocalChangesChoice(DealWithLocalChanges, Remember);
             using var lockWatcher = _repo.LockWatcher();
             var branchName = BranchName;
             ProgressDescription = $"Checkout '{branchName}' ...";

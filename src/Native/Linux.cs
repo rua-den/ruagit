@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.Versioning;
+using System.Text;
 
 using Avalonia;
 using Avalonia.Controls;
@@ -151,6 +152,110 @@ namespace SourceGit.Native
 
             var local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", filename);
             return File.Exists(local) ? local : string.Empty;
+        }
+
+        public bool ProtectData(byte[] data, out byte[] protectedData)
+        {
+            protectedData = null;
+            try
+            {
+                var encoded = Convert.ToBase64String(data);
+                var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "secret-tool",
+                    Arguments = $"store --label='SourceGit Credential' application sourcegit key {Guid.NewGuid()}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                });
+                if (proc != null)
+                {
+                    proc.StandardInput.Write(encoded);
+                    proc.StandardInput.Close();
+                    proc.WaitForExit();
+                    if (proc.ExitCode == 0)
+                    {
+                        protectedData = Encoding.UTF8.GetBytes("libsecret");
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            protectedData = Encoding.UTF8.GetBytes(Convert.ToBase64String(data));
+            return true;
+        }
+
+        public bool UnprotectData(byte[] protectedData, out byte[] data)
+        {
+            data = null;
+            try
+            {
+                if (protectedData != null && protectedData.Length > 0)
+                {
+                    var marker = Encoding.UTF8.GetString(protectedData);
+                    if (marker == "libsecret")
+                    {
+                        var proc = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "secret-tool",
+                            Arguments = "lookup application sourcegit",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                        });
+                        if (proc != null)
+                        {
+                            var output = proc.StandardOutput.ReadToEnd().Trim();
+                            proc.WaitForExit();
+                            if (proc.ExitCode == 0 && !string.IsNullOrEmpty(output))
+                            {
+                                data = Convert.FromBase64String(output);
+                                return true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        data = Convert.FromBase64String(marker);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return false;
+        }
+
+        public bool DeleteCredential(string key)
+        {
+            try
+            {
+                var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "secret-tool",
+                    Arguments = $"clear application sourcegit key {key}",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                });
+                proc?.WaitForExit();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public List<Models.GitHubCredentialEntry> FindStoredGitHubCredentials()
+        {
+            // libsecret schema used by GCM varies across distros; not supported yet.
+            return [];
         }
     }
 }

@@ -55,14 +55,18 @@ namespace SourceGit.ViewModels
             set => _repo.UIStates.PreferRebaseInsteadOfMerge = value;
         }
 
+        public bool Remember
+        {
+            get;
+            set;
+        }
+
         public Pull(Repository repo, Models.Branch specifiedRemoteBranch)
         {
             _repo = repo;
             Current = repo.CurrentBranch;
 
-            DealWithLocalChanges = Preferences.Instance.UseStashAndReapplyByDefault ?
-                Models.DealWithLocalChanges.StashAndReapply :
-                Models.DealWithLocalChanges.DoNothing;
+            DealWithLocalChanges = Preferences.Instance.ResolveInitialDealWithLocalChanges();
 
             if (specifiedRemoteBranch != null)
             {
@@ -111,6 +115,7 @@ namespace SourceGit.ViewModels
 
         public override async Task<bool> Sure()
         {
+            Preferences.Instance.SaveDealWithLocalChangesChoice(DealWithLocalChanges, Remember);
             using var lockWatcher = _repo.LockWatcher();
 
             var log = _repo.CreateLog("Pull");

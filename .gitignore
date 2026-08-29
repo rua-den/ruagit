@@ -36,6 +36,7 @@ package-lock.json
 build/resources/
 build/SourceGit/
 build/SourceGit.app/
+build/win-x64/
 build/*.zip
 build/*.tar.gz
 build/*.deb

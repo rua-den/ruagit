@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Avalonia.Collections;
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using SourceGit.Models;
+
 namespace SourceGit.ViewModels
 {
     public class Preferences : ObservableObject
@@ -247,17 +249,50 @@ namespace SourceGit.ViewModels
             set;
         } = false;
 
-        public bool EnableAutoFetch
+        public bool RememberDealWithLocalChanges
         {
             get;
             set;
         } = false;
 
+        public int DealWithLocalChangesChoice
+        {
+            get;
+            set;
+        } = 0;
+
+        public Models.DealWithLocalChanges ResolveInitialDealWithLocalChanges()
+        {
+            if (RememberDealWithLocalChanges &&
+                DealWithLocalChangesChoice >= 0 &&
+                DealWithLocalChangesChoice <= (int)Models.DealWithLocalChanges.Discard)
+            {
+                return (Models.DealWithLocalChanges)DealWithLocalChangesChoice;
+            }
+
+            return UseStashAndReapplyByDefault ?
+                Models.DealWithLocalChanges.StashAndReapply :
+                Models.DealWithLocalChanges.DoNothing;
+        }
+
+        public void SaveDealWithLocalChangesChoice(Models.DealWithLocalChanges value, bool remember)
+        {
+            RememberDealWithLocalChanges = remember;
+            DealWithLocalChangesChoice = (int)value;
+            Save();
+        }
+
+        public bool EnableAutoFetch
+        {
+            get;
+            set;
+        } = true;
+
         public int AutoFetchInterval
         {
             get;
             set;
-        } = 10;
+        } = 5;
 
         public bool IgnoreWhitespaceChangesInDiff
         {
@@ -486,6 +521,12 @@ namespace SourceGit.ViewModels
             set;
         } = [];
 
+        public AvaloniaList<Models.GitHubAccount> GitHubAccounts
+        {
+            get;
+            set;
+        } = [];
+
         public double LastCheckUpdateTime
         {
             get => _lastCheckUpdateTime;
@@ -530,6 +571,69 @@ namespace SourceGit.ViewModels
             first.IsActive = true;
             return first;
         }
+
+        public Models.GitHubAccount GetDefaultGitHubAccount()
+        {
+            foreach (var acc in GitHubAccounts)
+            {
+                if (acc.IsDefault)
+                    return acc;
+            }
+
+            return GitHubAccounts.Count > 0 ? GitHubAccounts[0] : null;
+        }
+
+        public Models.GitHubAccount GetGitHubAccount(Guid id)
+        {
+            foreach (var acc in GitHubAccounts)
+            {
+                if (acc.Id == id)
+                    return acc;
+            }
+            return null;
+        }
+
+        public void AddGitHubAccount(Models.GitHubAccount account, bool save = true)
+        {
+            if (account.IsDefault)
+            {
+                foreach (var acc in GitHubAccounts)
+                    acc.IsDefault = false;
+            }
+            else if (GitHubAccounts.Count == 0)
+            {
+                account.IsDefault = true;
+            }
+
+            GitHubAccounts.Add(account);
+
+            if (save)
+                Save();
+        }
+
+        public void RemoveGitHubAccount(Models.GitHubAccount account, bool save = true)
+        {
+            account.DeleteCredentials();
+            GitHubAccounts.Remove(account);
+
+            if (account.IsDefault && GitHubAccounts.Count > 0)
+                GitHubAccounts[0].IsDefault = true;
+
+            if (save)
+                Save();
+        }
+
+        public void SetDefaultGitHubAccount(Models.GitHubAccount account, bool save = true)
+        {
+            foreach (var acc in GitHubAccounts)
+                acc.IsDefault = acc == account;
+
+            if (save)
+                Save();
+        }
+
+        [JsonIgnore]
+        public GitHubAccountsViewModel GitHubAccountsViewModel => new GitHubAccountsViewModel(this);
 
         public void AddNode(RepositoryNode node, RepositoryNode to, bool save)
         {
