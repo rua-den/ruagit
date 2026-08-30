@@ -172,24 +172,27 @@
                       Margin="8,0,2,0"
                       Padding="7,2"
                       CornerRadius="4"
-                      Background="{DynamicResource Brush.FG1}"
+                      Background="{DynamicResource Brush.Badge}"
+                      BorderBrush="{DynamicResource Brush.Border2}"
+                      BorderThickness="1"
                       IsVisible="{Binding BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
                   <Path Width="12" Height="12"
                         Data="{StaticResource Icons.GitHub}"
-                        Fill="{DynamicResource Brush.Window}"/>
+                        Fill="{DynamicResource Brush.BadgeFG}"/>
                   <TextBlock Text="{Binding BoundGitHubAccount.DisplayName}"
                              FontSize="11"
                              FontWeight="SemiBold"
-                             Foreground="{DynamicResource Brush.Window}"
-                             MaxWidth="140"
+                             Foreground="{DynamicResource Brush.BadgeFG}"
+                             MaxWidth="170"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding BoundGitHubAccount.Username}"
                              FontSize="10"
-                             Foreground="{DynamicResource Brush.Window}"
-                             Opacity="0.78"
-                             MaxWidth="100"
+                             FontWeight="Medium"
+                             Foreground="{DynamicResource Brush.BadgeFG}"
+                             Opacity="0.85"
+                             MaxWidth="110"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center"
                              IsVisible="{Binding BoundGitHubAccount.Username, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
