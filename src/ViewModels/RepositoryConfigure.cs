@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -163,10 +163,9 @@ namespace SourceGit.ViewModels
                 if (!SetProperty(ref _boundAccount, value))
                     return;
 
-                Services.GitHubCredential.BindRepository(_repo.FullPath, value);
-                SetGitHubAccountStatus(value == null
-                    ? "Unbound — automatic fetch will not prompt for credentials"
-                    : $"Bound to {value.DisplayName} (manual)");
+                Services.GitHubAuthResolver.BindManual(_repo.FullPath, value);
+                var resolution = Services.GitHubAuthResolver.InspectRepository(_repo.FullPath);
+                SetGitHubAccountStatus(resolution.Display);
             }
         }
 
@@ -178,30 +177,21 @@ namespace SourceGit.ViewModels
                 return;
 
             _isDetectingGitHubAccount = true;
-            SetGitHubAccountStatus("Detecting from repository remotes...");
+            SetGitHubAccountStatus("Evaluating auth rules and repository remotes...");
 
             Task.Run(async () =>
             {
-                var detected = await Services.GitHubCredential.DetectForRepositoryAsync(_repo.FullPath).ConfigureAwait(false);
+                var resolution = await Services.GitHubAuthResolver.ResolveForRepositoryAsync(_repo.FullPath).ConfigureAwait(false);
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     _isDetectingGitHubAccount = false;
+                    _boundAccount = resolution.Account;
+                    OnPropertyChanged(nameof(BoundGitHubAccount));
 
-                    if (detected == null)
-                    {
-                        _boundAccount = null;
-                        OnPropertyChanged(nameof(BoundGitHubAccount));
-
-                        SetGitHubAccountStatus(Preferences.Instance.GitHubAccounts.Count == 0
-                            ? "No GitHub accounts configured — add one in Preferences"
-                            : "Unresolved — choose the account for this repository manually");
-                    }
+                    if (resolution.Account == null && Preferences.Instance.GitHubAccounts.Count == 0)
+                        SetGitHubAccountStatus("No GitHub accounts configured — add one in Preferences");
                     else
-                    {
-                        _boundAccount = detected;
-                        OnPropertyChanged(nameof(BoundGitHubAccount));
-                        SetGitHubAccountStatus($"Bound to {detected.DisplayName} (auto-detected)");
-                    }
+                        SetGitHubAccountStatus(resolution.Display);
                 });
             });
         }
@@ -253,21 +243,12 @@ namespace SourceGit.ViewModels
                 });
             }
 
-            var accountId = _repo.Settings.GitHubAccountId;
-            if (accountId != Guid.Empty)
-            {
-                _boundAccount = Preferences.Instance.GetGitHubAccount(accountId);
-                if (_boundAccount != null)
-                    SetGitHubAccountStatus($"Bound to {_boundAccount.DisplayName}");
-                else
-                    SetGitHubAccountStatus("Stored binding is stale — auto-detect or choose another account");
-            }
+            var resolution = Services.GitHubAuthResolver.InspectRepository(_repo.FullPath);
+            _boundAccount = resolution.Account;
+            if (_boundAccount == null && Preferences.Instance.GitHubAccounts.Count == 0)
+                SetGitHubAccountStatus("No GitHub accounts configured — add one in Preferences");
             else
-            {
-                SetGitHubAccountStatus(Preferences.Instance.GitHubAccounts.Count == 0
-                    ? "No GitHub accounts configured — add one in Preferences"
-                    : "Not bound yet — auto-detect or choose an account");
-            }
+                SetGitHubAccountStatus(resolution.Display);
         }
 
         public void ClearHttpProxy()

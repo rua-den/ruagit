@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -33,9 +33,9 @@ namespace SourceGit.ViewModels
         {
             Refresh();
 
-            // Backfill deterministic GitHub bindings from local repository config/remotes
-            // without forcing a full status scan or depending on network availability.
-            _ = Services.GitHubCredential.WarmupRepositoryBindingsAsync(Preferences.Instance.RepositoryNodes);
+            // Resolve account rules and deterministic GitHub bindings from local
+            // repository config/remotes without depending on network availability.
+            _ = Services.GitHubAuthResolver.WarmupRepositoryBindingsAsync(Preferences.Instance.RepositoryNodes);
         }
 
         public void Refresh()
@@ -140,6 +140,7 @@ namespace SourceGit.ViewModels
         {
             var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(path, parent, moveNode);
             await node.UpdateStatusAsync(false, null);
+            await Services.GitHubAuthResolver.ResolveForRepositoryAsync(path);
 
             if (open)
                 node.Open();

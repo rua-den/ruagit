@@ -22,6 +22,7 @@ namespace SourceGit.ViewModels
         {
             _preferences = preferences;
             Accounts = new AvaloniaList<GitHubAccount>(_preferences.GitHubAccounts);
+            SelectedAccount = Accounts.Count > 0 ? Accounts[0] : null;
         }
 
         public AvaloniaList<GitHubAccount> Accounts { get; }
@@ -91,7 +92,9 @@ namespace SourceGit.ViewModels
                 Email = account.Email,
                 AuthType = account.AuthType,
                 SSHKeyPath = account.SSHKeyPath,
+                MatchRules = account.MatchRules,
                 IsDefault = account.IsDefault,
+                AvatarUrl = account.AvatarUrl,
                 CreatedAt = account.CreatedAt,
                 UpdatedAt = DateTime.Now,
             };
@@ -164,6 +167,7 @@ namespace SourceGit.ViewModels
             EditingAccount.UpdatedAt = DateTime.Now;
 
             var existingAccount = _preferences.GetGitHubAccount(EditingAccount.Id);
+            var savedAccount = existingAccount ?? EditingAccount;
             if (existingAccount != null)
             {
                 var previousAuthType = existingAccount.AuthType;
@@ -172,7 +176,9 @@ namespace SourceGit.ViewModels
                 existingAccount.Email = EditingAccount.Email;
                 existingAccount.AuthType = EditingAccount.AuthType;
                 existingAccount.SSHKeyPath = EditingAccount.SSHKeyPath;
+                existingAccount.MatchRules = EditingAccount.MatchRules;
                 existingAccount.IsDefault = EditingAccount.IsDefault;
+                existingAccount.AvatarUrl = EditingAccount.AvatarUrl;
                 existingAccount.UpdatedAt = EditingAccount.UpdatedAt;
 
                 if (EditingAccount.AuthType == GitHubAuthType.PersonalAccessToken &&
@@ -193,11 +199,16 @@ namespace SourceGit.ViewModels
             }
 
             if (EditingAccount.IsDefault)
-                _preferences.SetDefaultGitHubAccount(existingAccount ?? EditingAccount);
+                _preferences.SetDefaultGitHubAccount(savedAccount);
 
             _preferences.Save();
+            SelectedAccount = savedAccount;
             OnPropertyChanged(nameof(ShowEmptyState));
             CancelEdit();
+
+            // Rule changes should take effect immediately for unbound/auto-bound repos.
+            // Manual and legacy bindings are intentionally preserved by the resolver.
+            _ = Services.GitHubAuthResolver.WarmupRepositoryBindingsAsync(_preferences.RepositoryNodes);
         }
 
         [RelayCommand]
@@ -209,7 +220,7 @@ namespace SourceGit.ViewModels
             _preferences.RemoveGitHubAccount(account);
             Accounts.Remove(account);
             if (ReferenceEquals(SelectedAccount, account))
-                SelectedAccount = null;
+                SelectedAccount = Accounts.Count > 0 ? Accounts[0] : null;
             OnPropertyChanged(nameof(ShowEmptyState));
         }
 
@@ -266,6 +277,10 @@ namespace SourceGit.ViewModels
             IsDetecting = true;
             DetectResult = "Scanning local git credential stores...";
 
+            // Snapshot UI-owned collections before leaving the UI thread.
+            var knownAccounts = Accounts.ToList();
+            var hasConfiguredAccounts = _preferences.GitHubAccounts.Count > 0;
+
             Task.Run(() =>
             {
                 List<GitHubAccount> imported = [];
@@ -284,9 +299,9 @@ namespace SourceGit.ViewModels
                         }
 
                         var exists = isSsh
-                            ? Accounts.Any(a => a.AuthType == GitHubAuthType.SSHKey &&
-                                                string.Equals(a.SSHKeyPath, entry.Secret, StringComparison.OrdinalIgnoreCase))
-                            : Accounts.Any(a =>
+                            ? knownAccounts.Any(a => a.AuthType == GitHubAuthType.SSHKey &&
+                                                    string.Equals(a.SSHKeyPath, entry.Secret, StringComparison.OrdinalIgnoreCase))
+                            : knownAccounts.Any(a =>
                                 string.Equals(a.Username, entry.Username, StringComparison.OrdinalIgnoreCase));
                         if (exists)
                         {
@@ -301,7 +316,7 @@ namespace SourceGit.ViewModels
                                 : entry.Username,
                             Username = entry.Username,
                             AuthType = isSsh ? GitHubAuthType.SSHKey : GitHubAuthType.PersonalAccessToken,
-                            IsDefault = _preferences.GitHubAccounts.Count == 0 && imported.Count == 0,
+                            IsDefault = !hasConfiguredAccounts && imported.Count == 0,
                         };
 
                         if (isSsh)
@@ -309,8 +324,8 @@ namespace SourceGit.ViewModels
                         else
                             account.Token = entry.Secret;
 
-                        _preferences.AddGitHubAccount(account);
                         imported.Add(account);
+                        knownAccounts.Add(account);
                     }
                 }
                 catch (Exception ex)
@@ -326,10 +341,14 @@ namespace SourceGit.ViewModels
                 Dispatcher.UIThread.Post(() =>
                 {
                     foreach (var acc in imported)
+                    {
+                        _preferences.AddGitHubAccount(acc);
                         Accounts.Add(acc);
+                    }
 
                     if (imported.Count > 0)
                     {
+                        SelectedAccount ??= imported[0];
                         var bySource = imported.GroupBy(a =>
                             a.AuthType == GitHubAuthType.SSHKey ? "ssh" : "token")
                             .Select(g => $"{g.Key}: {g.Count()}");

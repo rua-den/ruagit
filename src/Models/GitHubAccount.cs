@@ -91,6 +91,20 @@ namespace SourceGit.Models
             }
         }
 
+        private string _matchRules = string.Empty;
+        public string MatchRules
+        {
+            get => _matchRules;
+            set
+            {
+                if (SetProperty(ref _matchRules, value ?? string.Empty))
+                    OnPropertyChanged(nameof(HasMatchRules));
+            }
+        }
+
+        [JsonIgnore]
+        public bool HasMatchRules => !string.IsNullOrWhiteSpace(MatchRules);
+
         private bool _isDefault = false;
         public bool IsDefault
         {
