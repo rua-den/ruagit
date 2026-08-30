@@ -48,18 +48,31 @@ namespace SourceGit.Commands
 
         public async Task<bool> RunAsync()
         {
+            // Resolve credentials as late as possible so auth rules/SSH config win over
+            // a stale account cached when the command object was constructed.
+            GitHubUsername = string.Empty;
+            GitHubToken = string.Empty;
+
             var configuredKey = await new Config(WorkingDirectory).GetAsync($"remote.{_remote}.sshkey").ConfigureAwait(false);
             if (!string.IsNullOrEmpty(configuredKey))
+            {
                 SSHKey = configuredKey;
-            else if (string.IsNullOrEmpty(SSHKey))
-                ApplyGitHubCredential(await Services.GitHubCredential.DetectForRepositoryAsync(WorkingDirectory).ConfigureAwait(false));
+            }
+            else
+            {
+                SSHKey = string.Empty;
+                var resolution = await Services.GitHubAuthResolver.ResolveForRepositoryAsync(WorkingDirectory).ConfigureAwait(false);
+                ApplyGitHubCredential(resolution.Account);
+            }
+
             return await ExecAsync().ConfigureAwait(false);
         }
 
         private void ResolveBoundCredential()
         {
-            // SSH key from bound account only applies when no explicit key configured yet;
-            // RunAsync may still override via git config afterwards.
+            // PAT can be staged eagerly because RunAsync always refreshes the final
+            // credential choice. SSH is intentionally resolved only after checking the
+            // remote-specific sshkey setting.
             var account = FindBoundGitHubAccount();
             if (account?.AuthType == Models.GitHubAuthType.PersonalAccessToken)
                 ApplyGitHubCredential(account);
