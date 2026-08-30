@@ -29,14 +29,22 @@ namespace SourceGit.Models
         public string Name
         {
             get => _name;
-            set => SetProperty(ref _name, value);
+            set
+            {
+                if (SetProperty(ref _name, value))
+                    OnPropertyChanged(nameof(DisplayName));
+            }
         }
 
         private string _username = string.Empty;
         public string Username
         {
             get => _username;
-            set => SetProperty(ref _username, value);
+            set
+            {
+                if (SetProperty(ref _username, value))
+                    OnPropertyChanged(nameof(DisplayName));
+            }
         }
 
         private string _email = string.Empty;
@@ -50,7 +58,11 @@ namespace SourceGit.Models
         public GitHubAuthType AuthType
         {
             get => _authType;
-            set => SetProperty(ref _authType, value);
+            set
+            {
+                if (SetProperty(ref _authType, value))
+                    OnPropertyChanged(nameof(HasValidCredentials));
+            }
         }
 
         [JsonIgnore]
@@ -61,6 +73,7 @@ namespace SourceGit.Models
             {
                 CredentialManager.StoreToken(Id, value);
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(HasValidCredentials));
             }
         }
 
@@ -71,7 +84,11 @@ namespace SourceGit.Models
         public string SSHKeyPath
         {
             get => _sshKeyPath;
-            set => SetProperty(ref _sshKeyPath, value);
+            set
+            {
+                if (SetProperty(ref _sshKeyPath, value))
+                    OnPropertyChanged(nameof(HasValidCredentials));
+            }
         }
 
         private bool _isDefault = false;
@@ -101,6 +118,7 @@ namespace SourceGit.Models
         public void DeleteCredentials()
         {
             CredentialManager.DeleteToken(Id);
+            OnPropertyChanged(nameof(HasValidCredentials));
         }
     }
 }
