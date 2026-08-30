@@ -32,6 +32,12 @@ namespace SourceGit.ViewModels
         public Welcome()
         {
             Refresh();
+
+            // Kick the existing repository status walk as soon as the welcome model is
+            // created. RepositoryNode performs GitHub account detection once per session,
+            // so this also backfills deterministic bindings for every saved repository
+            // before background fetches become the first credential consumer.
+            _ = UpdateStatusAsync(false, null);
         }
 
         public void Refresh()
@@ -59,15 +65,19 @@ namespace SourceGit.ViewModels
                 return;
 
             _isUpdatingStatus = true;
+            try
+            {
+                // avoid collection was modified while enumerating.
+                var nodes = new List<RepositoryNode>();
+                nodes.AddRange(Preferences.Instance.RepositoryNodes);
 
-            // avoid collection was modified while enumerating.
-            var nodes = new List<RepositoryNode>();
-            nodes.AddRange(Preferences.Instance.RepositoryNodes);
-
-            foreach (var node in nodes)
-                await node.UpdateStatusAsync(force, token);
-
-            _isUpdatingStatus = false;
+                foreach (var node in nodes)
+                    await node.UpdateStatusAsync(force, token);
+            }
+            finally
+            {
+                _isUpdatingStatus = false;
+            }
         }
 
         public void ToggleNodeIsExpanded(RepositoryNode node)
