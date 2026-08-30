@@ -195,18 +195,26 @@ namespace SourceGit.Commands
             if (!string.IsNullOrEmpty(GitHubToken))
             {
                 start.Environment["GIT_ASKPASS"] = selfExecFile;
+                start.Environment["SOURCEGIT_LAUNCH_AS_ASKPASS"] = "TRUE";
                 start.Environment["SOURCEGIT_GITHUB_ASKPASS_USERNAME"] =
                     string.IsNullOrEmpty(GitHubUsername) ? "x-access-token" : GitHubUsername;
                 start.Environment["SOURCEGIT_GITHUB_ASKPASS_TOKEN"] = GitHubToken;
                 start.Environment["GIT_TERMINAL_PROMPT"] = "0";
             }
 
-            // If an SSH private key was provided, sets the environment.
-            // Forward slashes keep the path safe across ssh implementations.
-            if (!start.Environment.ContainsKey("GIT_SSH_COMMAND") && !string.IsNullOrEmpty(SSHKey))
+            // If an SSH private key was provided, sets the environment. Background SSH
+            // without a resolved key is still forced into BatchMode so it cannot prompt.
+            if (!start.Environment.ContainsKey("GIT_SSH_COMMAND"))
             {
-                var batchMode = NonInteractiveAuthentication ? " -o BatchMode=yes" : string.Empty;
-                start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey.Replace('\\', '/')}' -o IdentitiesOnly=yes -o AddKeysToAgent=yes{batchMode}";
+                if (!string.IsNullOrEmpty(SSHKey))
+                {
+                    var batchMode = NonInteractiveAuthentication ? " -o BatchMode=yes" : string.Empty;
+                    start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey.Replace('\\', '/')}' -o IdentitiesOnly=yes -o AddKeysToAgent=yes{batchMode}";
+                }
+                else if (NonInteractiveAuthentication)
+                {
+                    start.Environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes";
+                }
             }
 
             // Force using en_US.UTF-8 locale
