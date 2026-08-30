@@ -167,13 +167,23 @@
               <!-- GitHub Account Badge -->
               <Border Grid.Column="3"
                       Margin="6,0,0,0"
-                      Padding="4,1"
-                      CornerRadius="3"
-                      Background="{DynamicResource AccentBackground}"
+                      Padding="6,1"
+                      CornerRadius="4"
+                      Background="{DynamicResource Brush.Badge}"
+                      BorderBrush="{DynamicResource Brush.Border2}"
+                      BorderThickness="1"
                       IsVisible="{Binding BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                  <Path Width="12" Height="12" Data="{StaticResource Icons.GitHub}" Fill="{DynamicResource AccentForeground}"/>
-                  <TextBlock Text="{Binding BoundGitHubAccountDisplay}" FontSize="11" Foreground="{DynamicResource AccentForeground}"/>
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <Path Width="12" Height="12"
+                        Data="{StaticResource Icons.GitHub}"
+                        Fill="{DynamicResource Brush.BadgeFG}"/>
+                  <TextBlock Text="{Binding BoundGitHubAccountDisplay}"
+                             FontSize="11"
+                             FontWeight="SemiBold"
+                             Foreground="{DynamicResource Brush.BadgeFG}"
+                             MaxWidth="180"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
                 </StackPanel>
               </Border>
 
