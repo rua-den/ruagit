@@ -336,13 +336,13 @@ namespace SourceGit.ViewModels
         public void MoveSelectedCustomActionUp()
         {
             if (_selectedCustomAction != null)
-                _repo.Settings.MoveSelectedCustomActionUp();
+                _repo.Settings.MoveCustomActionUp(_selectedCustomAction);
         }
 
         public void MoveSelectedCustomActionDown()
         {
             if (_selectedCustomAction != null)
-                _repo.Settings.MoveSelectedCustomActionDown();
+                _repo.Settings.MoveCustomActionDown(_selectedCustomAction);
         }
 
         public async Task SaveAsync()
