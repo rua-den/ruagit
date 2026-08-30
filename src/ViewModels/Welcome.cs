@@ -32,6 +32,10 @@ namespace SourceGit.ViewModels
         public Welcome()
         {
             Refresh();
+
+            // Backfill deterministic GitHub bindings from local repository config/remotes
+            // without forcing a full status scan or depending on network availability.
+            _ = Services.GitHubCredential.WarmupRepositoryBindingsAsync(Preferences.Instance.RepositoryNodes);
         }
 
         public void Refresh()
@@ -59,15 +63,19 @@ namespace SourceGit.ViewModels
                 return;
 
             _isUpdatingStatus = true;
+            try
+            {
+                // avoid collection was modified while enumerating.
+                var nodes = new List<RepositoryNode>();
+                nodes.AddRange(Preferences.Instance.RepositoryNodes);
 
-            // avoid collection was modified while enumerating.
-            var nodes = new List<RepositoryNode>();
-            nodes.AddRange(Preferences.Instance.RepositoryNodes);
-
-            foreach (var node in nodes)
-                await node.UpdateStatusAsync(force, token);
-
-            _isUpdatingStatus = false;
+                foreach (var node in nodes)
+                    await node.UpdateStatusAsync(force, token);
+            }
+            finally
+            {
+                _isUpdatingStatus = false;
+            }
         }
 
         public void ToggleNodeIsExpanded(RepositoryNode node)

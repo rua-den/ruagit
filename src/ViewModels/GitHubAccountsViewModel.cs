@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Input;
 
 using Avalonia.Collections;
 using Avalonia.Threading;
@@ -70,13 +71,18 @@ namespace SourceGit.ViewModels
                 IsDefault = Accounts.Count == 0,
             };
             NewToken = string.Empty;
+            TestResult = string.Empty;
             IsEditing = true;
             OnPropertyChanged(nameof(EditingTitle));
+            OnPropertyChanged(nameof(ShowEmptyState));
         }
 
         [RelayCommand]
         public void BeginEdit(GitHubAccount account)
         {
+            if (account == null)
+                return;
+
             EditingAccount = new GitHubAccount
             {
                 Id = account.Id,
@@ -90,8 +96,10 @@ namespace SourceGit.ViewModels
                 UpdatedAt = DateTime.Now,
             };
             NewToken = string.Empty;
+            TestResult = string.Empty;
             IsEditing = true;
             OnPropertyChanged(nameof(EditingTitle));
+            OnPropertyChanged(nameof(ShowEmptyState));
         }
 
         [RelayCommand]
@@ -101,6 +109,7 @@ namespace SourceGit.ViewModels
             IsEditing = false;
             NewToken = string.Empty;
             TestResult = string.Empty;
+            OnPropertyChanged(nameof(ShowEmptyState));
         }
 
         [RelayCommand]
@@ -115,7 +124,8 @@ namespace SourceGit.ViewModels
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(EditingAccount.Username))
+            if (EditingAccount.AuthType == GitHubAuthType.PersonalAccessToken &&
+                string.IsNullOrWhiteSpace(EditingAccount.Username))
             {
                 TestResult = "Username is required";
                 return;
@@ -127,6 +137,11 @@ namespace SourceGit.ViewModels
                 {
                     var existing = _preferences.GetGitHubAccount(EditingAccount.Id);
                     if (existing != null && string.IsNullOrWhiteSpace(existing.Token))
+                    {
+                        TestResult = "Token is required";
+                        return;
+                    }
+                    else if (existing == null)
                     {
                         TestResult = "Token is required";
                         return;
@@ -151,6 +166,7 @@ namespace SourceGit.ViewModels
             var existingAccount = _preferences.GetGitHubAccount(EditingAccount.Id);
             if (existingAccount != null)
             {
+                var previousAuthType = existingAccount.AuthType;
                 existingAccount.Name = EditingAccount.Name;
                 existingAccount.Username = EditingAccount.Username;
                 existingAccount.Email = EditingAccount.Email;
@@ -159,8 +175,16 @@ namespace SourceGit.ViewModels
                 existingAccount.IsDefault = EditingAccount.IsDefault;
                 existingAccount.UpdatedAt = EditingAccount.UpdatedAt;
 
-                if (!string.IsNullOrWhiteSpace(NewToken))
+                if (EditingAccount.AuthType == GitHubAuthType.PersonalAccessToken &&
+                    !string.IsNullOrWhiteSpace(NewToken))
+                {
                     existingAccount.Token = NewToken;
+                }
+                else if (previousAuthType == GitHubAuthType.PersonalAccessToken &&
+                         EditingAccount.AuthType != GitHubAuthType.PersonalAccessToken)
+                {
+                    existingAccount.DeleteCredentials();
+                }
             }
             else
             {
@@ -169,23 +193,30 @@ namespace SourceGit.ViewModels
             }
 
             if (EditingAccount.IsDefault)
-                _preferences.SetDefaultGitHubAccount(EditingAccount);
+                _preferences.SetDefaultGitHubAccount(existingAccount ?? EditingAccount);
 
             _preferences.Save();
+            OnPropertyChanged(nameof(ShowEmptyState));
             CancelEdit();
         }
 
         [RelayCommand]
         public void DeleteAccount(GitHubAccount account)
         {
+            if (account == null)
+                return;
+
             _preferences.RemoveGitHubAccount(account);
             Accounts.Remove(account);
+            if (ReferenceEquals(SelectedAccount, account))
+                SelectedAccount = null;
+            OnPropertyChanged(nameof(ShowEmptyState));
         }
 
         [RelayCommand]
         public async Task TestConnectionAsync()
         {
-            if (EditingAccount == null)
+            if (EditingAccount == null || IsTesting)
                 return;
 
             IsTesting = true;
@@ -193,32 +224,10 @@ namespace SourceGit.ViewModels
 
             try
             {
-                var token = EditingAccount.Token;
-                if (string.IsNullOrEmpty(token))
-                {
-                    TestResult = "No token configured";
-                    return;
-                }
-
-                using var http = new System.Net.Http.HttpClient();
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("SourceGit");
-                http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                var response = await http.GetAsync("https://api.github.com/user");
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync();
-                    using var doc = System.Text.Json.JsonDocument.Parse(json);
-                    var login = doc.RootElement.GetProperty("login").GetString();
-                    var avatar = doc.RootElement.GetProperty("avatar_url").GetString();
-                    EditingAccount.Username = login ?? EditingAccount.Username;
-                    EditingAccount.AvatarUrl = avatar ?? string.Empty;
-                    TestResult = $"✓ Connected as @{login}";
-                }
+                if (EditingAccount.AuthType == GitHubAuthType.SSHKey)
+                    await TestSshConnectionAsync();
                 else
-                {
-                    TestResult = $"✗ Failed: {(int)response.StatusCode} {response.ReasonPhrase}";
-                }
+                    await TestTokenConnectionAsync();
             }
             catch (Exception ex)
             {
@@ -233,14 +242,19 @@ namespace SourceGit.ViewModels
         [RelayCommand]
         public void SetAsDefault(GitHubAccount account)
         {
+            if (account == null)
+                return;
+
             _preferences.SetDefaultGitHubAccount(account);
         }
 
-        [RelayCommand]
-        public void BrowseSSHKey()
+        public void SetEditingSshKeyPath(string path)
         {
-            // This would need a file dialog - for now just a placeholder
-            // In a real implementation, you'd use IFileDialog or similar
+            if (EditingAccount == null)
+                return;
+
+            EditingAccount.SSHKeyPath = path ?? string.Empty;
+            TestResult = string.Empty;
         }
 
         [RelayCommand]
@@ -327,9 +341,109 @@ namespace SourceGit.ViewModels
                         DetectResult = "No new accounts found (scanned: credential vault, ~/.git-credentials, gh CLI, ~/.ssh/config)";
                     }
 
+                    OnPropertyChanged(nameof(ShowEmptyState));
                     IsDetecting = false;
                 });
             });
+        }
+
+        private async Task TestTokenConnectionAsync()
+        {
+            var token = string.IsNullOrWhiteSpace(NewToken) ? EditingAccount.Token : NewToken;
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                TestResult = "No token configured";
+                return;
+            }
+
+            using var http = new System.Net.Http.HttpClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("SourceGit");
+            http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await http.GetAsync("https://api.github.com/user");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var login = doc.RootElement.GetProperty("login").GetString();
+                var avatar = doc.RootElement.GetProperty("avatar_url").GetString();
+                EditingAccount.Username = login ?? EditingAccount.Username;
+                EditingAccount.AvatarUrl = avatar ?? string.Empty;
+                TestResult = $"✓ Connected as @{login}";
+            }
+            else
+            {
+                TestResult = $"✗ Failed: {(int)response.StatusCode} {response.ReasonPhrase}";
+            }
+        }
+
+        private async Task TestSshConnectionAsync()
+        {
+            var keyPath = EditingAccount.SSHKeyPath;
+            if (string.IsNullOrWhiteSpace(keyPath) || !File.Exists(keyPath))
+            {
+                TestResult = "SSH key file does not exist";
+                return;
+            }
+
+            using var proc = new Process();
+            proc.StartInfo = new ProcessStartInfo
+            {
+                FileName = "ssh",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            proc.StartInfo.ArgumentList.Add("-T");
+            proc.StartInfo.ArgumentList.Add("-o");
+            proc.StartInfo.ArgumentList.Add("BatchMode=yes");
+            proc.StartInfo.ArgumentList.Add("-o");
+            proc.StartInfo.ArgumentList.Add("StrictHostKeyChecking=accept-new");
+            proc.StartInfo.ArgumentList.Add("-o");
+            proc.StartInfo.ArgumentList.Add("IdentitiesOnly=yes");
+            proc.StartInfo.ArgumentList.Add("-i");
+            proc.StartInfo.ArgumentList.Add(keyPath);
+            proc.StartInfo.ArgumentList.Add("git@github.com");
+
+            proc.Start();
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync();
+            var stderrTask = proc.StandardError.ReadToEndAsync();
+            var exitTask = proc.WaitForExitAsync();
+            if (await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(10))) != exitTask)
+            {
+                try
+                {
+                    proc.Kill(true);
+                }
+                catch
+                {
+                }
+
+                TestResult = "✗ SSH test timed out";
+                return;
+            }
+
+            await exitTask;
+            var output = ((await stdoutTask) + "\n" + (await stderrTask)).Trim();
+
+            if (output.Contains("successfully authenticated", StringComparison.OrdinalIgnoreCase))
+            {
+                var hi = output.IndexOf("Hi ", StringComparison.OrdinalIgnoreCase);
+                var bang = hi >= 0 ? output.IndexOf('!', hi) : -1;
+                if (hi >= 0 && bang > hi + 3)
+                    EditingAccount.Username = output.Substring(hi + 3, bang - hi - 3).Trim();
+
+                TestResult = string.IsNullOrWhiteSpace(EditingAccount.Username)
+                    ? "✓ SSH authentication succeeded"
+                    : $"✓ Connected as @{EditingAccount.Username}";
+            }
+            else
+            {
+                TestResult = string.IsNullOrWhiteSpace(output)
+                    ? $"✗ SSH authentication failed (exit {proc.ExitCode})"
+                    : $"✗ {output.Replace('\n', ' ').Replace('\r', ' ')}";
+            }
         }
     }
 }

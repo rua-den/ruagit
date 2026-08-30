@@ -35,7 +35,13 @@ namespace SourceGit.Services
         public static bool DeleteToken(Guid accountId)
         {
             var key = Prefix + accountId;
-            return OS.DeleteCredential(key) && DeleteProtectedData(key);
+
+            // Always attempt both cleanup paths. The platform credential entry may not
+            // exist (tokens are currently stored in our protected data file), and using
+            // && here would short-circuit before deleting that file.
+            var platformDeleted = OS.DeleteCredential(key);
+            var fileDeleted = DeleteProtectedData(key);
+            return platformDeleted || fileDeleted;
         }
 
         private static bool SaveProtectedData(string key, byte[] data)

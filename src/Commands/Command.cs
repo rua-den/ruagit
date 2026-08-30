@@ -33,6 +33,7 @@ namespace SourceGit.Commands
         public string Args { get; set; } = string.Empty;
         public string GitHubUsername { get; set; } = string.Empty;
         public string GitHubToken { get; set; } = string.Empty;
+        public bool NonInteractiveAuthentication { get; set; } = false;
 
         // Only used in `ExecAsync` mode.
         public CancellationToken CancellationToken { get; set; } = CancellationToken.None;
@@ -173,29 +174,48 @@ namespace SourceGit.Commands
                 start.StandardErrorEncoding = Encoding.UTF8;
             }
 
-            // Force using this app as SSH askpass program
             var selfExecFile = Environment.ProcessPath;
-            start.Environment["SSH_ASKPASS"] = selfExecFile; // Can not use parameter here, because it invoked by SSH with `exec`
-            start.Environment["SSH_ASKPASS_REQUIRE"] = "prefer";
-            start.Environment["SOURCEGIT_LAUNCH_AS_ASKPASS"] = "TRUE";
-            if (!OperatingSystem.IsLinux())
-                start.Environment["DISPLAY"] = "required";
 
-            // If a GitHub account credential was provided, answers git's username/password
-            // prompts headlessly via askpass. Values are passed by env to avoid leaking into logs.
+            // Interactive commands may launch SourceGit's SSH askpass window. Background
+            // commands must never open credential UI or wait for terminal input.
+            if (!NonInteractiveAuthentication)
+            {
+                start.Environment["SSH_ASKPASS"] = selfExecFile;
+                start.Environment["SSH_ASKPASS_REQUIRE"] = "prefer";
+                start.Environment["SOURCEGIT_LAUNCH_AS_ASKPASS"] = "TRUE";
+                if (!OperatingSystem.IsLinux())
+                    start.Environment["DISPLAY"] = "required";
+            }
+            else
+            {
+                start.Environment["GIT_TERMINAL_PROMPT"] = "0";
+            }
+
+            // A bound GitHub token is answered headlessly via GIT_ASKPASS in both modes.
             if (!string.IsNullOrEmpty(GitHubToken))
             {
                 start.Environment["GIT_ASKPASS"] = selfExecFile;
+                start.Environment["SOURCEGIT_LAUNCH_AS_ASKPASS"] = "TRUE";
                 start.Environment["SOURCEGIT_GITHUB_ASKPASS_USERNAME"] =
                     string.IsNullOrEmpty(GitHubUsername) ? "x-access-token" : GitHubUsername;
                 start.Environment["SOURCEGIT_GITHUB_ASKPASS_TOKEN"] = GitHubToken;
                 start.Environment["GIT_TERMINAL_PROMPT"] = "0";
             }
 
-            // If an SSH private key was provided, sets the environment.
-            // Forward slashes keep the path safe across ssh implementations.
-            if (!start.Environment.ContainsKey("GIT_SSH_COMMAND") && !string.IsNullOrEmpty(SSHKey))
-                start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey.Replace('\\', '/')}' -o IdentitiesOnly=yes -o AddKeysToAgent=yes";
+            // If an SSH private key was provided, sets the environment. Background SSH
+            // without a resolved key is still forced into BatchMode so it cannot prompt.
+            if (!start.Environment.ContainsKey("GIT_SSH_COMMAND"))
+            {
+                if (!string.IsNullOrEmpty(SSHKey))
+                {
+                    var batchMode = NonInteractiveAuthentication ? " -o BatchMode=yes" : string.Empty;
+                    start.Environment["GIT_SSH_COMMAND"] = $"ssh -i '{SSHKey.Replace('\\', '/')}' -o IdentitiesOnly=yes -o AddKeysToAgent=yes{batchMode}";
+                }
+                else if (NonInteractiveAuthentication)
+                {
+                    start.Environment["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes";
+                }
+            }
 
             // Force using en_US.UTF-8 locale
             if (OperatingSystem.IsLinux())
@@ -205,7 +225,7 @@ namespace SourceGit.Commands
             }
 
             var builder = new StringBuilder(2048);
-            if (string.IsNullOrEmpty(GitHubToken))
+            if (string.IsNullOrEmpty(GitHubToken) && !NonInteractiveAuthentication)
             {
                 builder
                     .Append("--no-pager -c core.quotepath=off -c credential.helper=")
@@ -214,9 +234,9 @@ namespace SourceGit.Commands
             }
             else
             {
-                // Bypass credential manager (incl. any globally configured helper):
-                // empty helper forces git to fall back to our askpass, which provides
-                // the bound account's token directly.
+                // Bound tokens are supplied by our headless askpass. For background
+                // commands without a resolved token, an empty helper guarantees a fast
+                // authentication failure instead of opening GCM or another helper UI.
                 builder.Append("--no-pager -c core.quotepath=off -c credential.helper= ");
             }
 
