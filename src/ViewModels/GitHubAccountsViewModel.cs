@@ -166,6 +166,7 @@ namespace SourceGit.ViewModels
             var existingAccount = _preferences.GetGitHubAccount(EditingAccount.Id);
             if (existingAccount != null)
             {
+                var previousAuthType = existingAccount.AuthType;
                 existingAccount.Name = EditingAccount.Name;
                 existingAccount.Username = EditingAccount.Username;
                 existingAccount.Email = EditingAccount.Email;
@@ -174,8 +175,16 @@ namespace SourceGit.ViewModels
                 existingAccount.IsDefault = EditingAccount.IsDefault;
                 existingAccount.UpdatedAt = EditingAccount.UpdatedAt;
 
-                if (!string.IsNullOrWhiteSpace(NewToken))
+                if (EditingAccount.AuthType == GitHubAuthType.PersonalAccessToken &&
+                    !string.IsNullOrWhiteSpace(NewToken))
+                {
                     existingAccount.Token = NewToken;
+                }
+                else if (previousAuthType == GitHubAuthType.PersonalAccessToken &&
+                         EditingAccount.AuthType != GitHubAuthType.PersonalAccessToken)
+                {
+                    existingAccount.DeleteCredentials();
+                }
             }
             else
             {
@@ -390,6 +399,8 @@ namespace SourceGit.ViewModels
             proc.StartInfo.ArgumentList.Add("-o");
             proc.StartInfo.ArgumentList.Add("BatchMode=yes");
             proc.StartInfo.ArgumentList.Add("-o");
+            proc.StartInfo.ArgumentList.Add("StrictHostKeyChecking=accept-new");
+            proc.StartInfo.ArgumentList.Add("-o");
             proc.StartInfo.ArgumentList.Add("IdentitiesOnly=yes");
             proc.StartInfo.ArgumentList.Add("-i");
             proc.StartInfo.ArgumentList.Add(keyPath);
@@ -398,7 +409,22 @@ namespace SourceGit.ViewModels
             proc.Start();
             var stdoutTask = proc.StandardOutput.ReadToEndAsync();
             var stderrTask = proc.StandardError.ReadToEndAsync();
-            await proc.WaitForExitAsync();
+            var exitTask = proc.WaitForExitAsync();
+            if (await Task.WhenAny(exitTask, Task.Delay(TimeSpan.FromSeconds(10))) != exitTask)
+            {
+                try
+                {
+                    proc.Kill(true);
+                }
+                catch
+                {
+                }
+
+                TestResult = "✗ SSH test timed out";
+                return;
+            }
+
+            await exitTask;
             var output = ((await stdoutTask) + "\n" + (await stderrTask)).Trim();
 
             if (output.Contains("successfully authenticated", StringComparison.OrdinalIgnoreCase))
