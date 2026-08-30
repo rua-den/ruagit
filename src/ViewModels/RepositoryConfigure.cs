@@ -160,34 +160,47 @@ namespace SourceGit.ViewModels
             get => _boundAccount;
             set
             {
-                if (SetProperty(ref _boundAccount, value))
-                {
-                    _repo.Settings.GitHubAccountId = value?.Id ?? Guid.Empty;
-                    _repo.Settings.Save();
-                    OnPropertyChanged(nameof(BoundGitHubAccountDisplay));
-                }
+                if (!SetProperty(ref _boundAccount, value))
+                    return;
+
+                Services.GitHubCredential.BindRepository(_repo.FullPath, value);
+                SetGitHubAccountStatus(value == null
+                    ? "Unbound — automatic fetch will not prompt for credentials"
+                    : $"Bound to {value.DisplayName} (manual)");
             }
         }
 
-        public string BoundGitHubAccountDisplay => _boundAccount?.DisplayName ?? "—";
+        public string BoundGitHubAccountDisplay => _githubAccountStatus;
 
         public void AutoDetectGitHubAccount()
         {
+            if (_isDetectingGitHubAccount)
+                return;
+
+            _isDetectingGitHubAccount = true;
+            SetGitHubAccountStatus("Detecting from repository remotes...");
+
             Task.Run(async () =>
             {
                 var detected = await Services.GitHubCredential.DetectForRepositoryAsync(_repo.FullPath).ConfigureAwait(false);
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
+                    _isDetectingGitHubAccount = false;
+
                     if (detected == null)
                     {
-                        Models.Notification.Send(_repo.FullPath,
-                            "No matching GitHub account found from repository remotes.", false);
+                        _boundAccount = null;
+                        OnPropertyChanged(nameof(BoundGitHubAccount));
+
+                        SetGitHubAccountStatus(Preferences.Instance.GitHubAccounts.Count == 0
+                            ? "No GitHub accounts configured — add one in Preferences"
+                            : "Unresolved — choose the account for this repository manually");
                     }
                     else
                     {
-                        BoundGitHubAccount = detected;
-                        Models.Notification.Send(_repo.FullPath,
-                            $"Auto-detected GitHub account: {detected.DisplayName}", false);
+                        _boundAccount = detected;
+                        OnPropertyChanged(nameof(BoundGitHubAccount));
+                        SetGitHubAccountStatus($"Bound to {detected.DisplayName} (auto-detected)");
                     }
                 });
             });
@@ -244,7 +257,16 @@ namespace SourceGit.ViewModels
             if (accountId != Guid.Empty)
             {
                 _boundAccount = Preferences.Instance.GetGitHubAccount(accountId);
-                OnPropertyChanged(nameof(BoundGitHubAccountDisplay));
+                if (_boundAccount != null)
+                    SetGitHubAccountStatus($"Bound to {_boundAccount.DisplayName}");
+                else
+                    SetGitHubAccountStatus("Stored binding is stale — auto-detect or choose another account");
+            }
+            else
+            {
+                SetGitHubAccountStatus(Preferences.Instance.GitHubAccounts.Count == 0
+                    ? "No GitHub accounts configured — add one in Preferences"
+                    : "Not bound yet — auto-detect or choose an account");
             }
         }
 
@@ -314,13 +336,13 @@ namespace SourceGit.ViewModels
         public void MoveSelectedCustomActionUp()
         {
             if (_selectedCustomAction != null)
-                _repo.Settings.MoveCustomActionUp(_selectedCustomAction);
+                _repo.Settings.MoveSelectedCustomActionUp();
         }
 
         public void MoveSelectedCustomActionDown()
         {
             if (_selectedCustomAction != null)
-                _repo.Settings.MoveCustomActionDown(_selectedCustomAction);
+                _repo.Settings.MoveSelectedCustomActionDown();
         }
 
         public async Task SaveAsync()
@@ -336,6 +358,12 @@ namespace SourceGit.ViewModels
             await SetIfChangedAsync("fetch.prune", EnablePruneOnFetch ? "true" : "false", "false");
 
             await ApplyIssueTrackerChangesAsync();
+        }
+
+        private void SetGitHubAccountStatus(string status)
+        {
+            _githubAccountStatus = status;
+            OnPropertyChanged(nameof(BoundGitHubAccountDisplay));
         }
 
         private async Task SetIfChangedAsync(string key, string value, string defValue)
@@ -407,5 +435,7 @@ namespace SourceGit.ViewModels
         private Models.IssueTracker _selectedIssueTracker = null;
         private Models.CustomAction _selectedCustomAction = null;
         private Models.GitHubAccount _boundAccount = null;
+        private string _githubAccountStatus = "Not bound";
+        private bool _isDetectingGitHubAccount = false;
     }
 }
