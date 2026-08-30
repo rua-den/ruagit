@@ -33,11 +33,9 @@ namespace SourceGit.ViewModels
         {
             Refresh();
 
-            // Kick the existing repository status walk as soon as the welcome model is
-            // created. RepositoryNode performs GitHub account detection once per session,
-            // so this also backfills deterministic bindings for every saved repository
-            // before background fetches become the first credential consumer.
-            _ = UpdateStatusAsync(false, null);
+            // Backfill deterministic GitHub bindings from local repository config/remotes
+            // without forcing a full status scan or depending on network availability.
+            _ = Services.GitHubCredential.WarmupRepositoryBindingsAsync(Preferences.Instance.RepositoryNodes);
         }
 
         public void Refresh()
