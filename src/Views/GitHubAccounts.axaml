@@ -9,27 +9,36 @@
         <conv:EnumToBooleanConverter x:Key="EnumToBool" />
     </UserControl.Resources>
 
-    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" MinWidth="680">
+    <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" MinWidth="760">
         <!-- Toolbar -->
         <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*" Margin="0,0,0,8">
             <Button Grid.Column="0"
+                    Classes="flat"
+                    Padding="12,5"
+                    Foreground="{DynamicResource Brush.FG1}"
+                    Background="{DynamicResource Brush.FlatButton.Background}"
                     Content="{DynamicResource Text.GitHubAccounts.Add}"
-                    Command="{Binding BeginAddCommand}"
-                    Theme="{StaticResource AccentButton}"/>
+                    Command="{Binding BeginAddCommand}"/>
             <Button Grid.Column="1"
+                    Classes="flat"
                     Margin="8,0,0,0"
+                    Padding="12,5"
+                    Foreground="{DynamicResource Brush.FG1}"
+                    Background="{DynamicResource Brush.FlatButton.Background}"
                     Command="{Binding AutoDetectFromGitCommand}"
                     IsEnabled="{Binding !IsDetecting}"
                     ToolTip.Tip="{DynamicResource Text.GitHubAccounts.AutoDetect.Tip}">
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <Path Width="13" Height="13" Data="{StaticResource Icons.Search}" Fill="{DynamicResource Brush.FG1}"/>
-                    <TextBlock Text="{DynamicResource Text.GitHubAccounts.AutoDetect}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Text.GitHubAccounts.AutoDetect}"
+                               Foreground="{DynamicResource Brush.FG1}"
+                               VerticalAlignment="Center"/>
                 </StackPanel>
             </Button>
             <TextBlock Grid.Column="2"
                        Text="{DynamicResource Text.Preferences.GitHubAccountsDesc}"
                        VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextBrushSecondary}"
+                       Foreground="{DynamicResource Brush.FG2}"
                        Margin="12,0,0,0"
                        TextWrapping="Wrap"/>
         </Grid>
@@ -37,58 +46,76 @@
         <TextBlock Grid.Row="1"
                    Margin="0,0,0,8"
                    FontSize="12"
-                   Foreground="{DynamicResource TextBrushSecondary}"
+                   Foreground="{DynamicResource Brush.FG2}"
                    Text="{Binding DetectResult}"
                    IsVisible="{Binding DetectResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
-        <!-- Account list + actions -->
-        <Grid Grid.Row="2" RowDefinitions="*,Auto" MinHeight="300">
-            <Border Grid.Row="0"
+        <!-- Accounts and selected-account details -->
+        <Grid Grid.Row="2" ColumnDefinitions="280,*" ColumnSpacing="12" MinHeight="330">
+            <Border Grid.Column="0"
                     IsVisible="{Binding !ShowEmptyState}"
-                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderBrush="{DynamicResource Brush.Border2}"
                     BorderThickness="1"
                     CornerRadius="4"
-                    Background="{DynamicResource CardBackground}">
+                    Background="{DynamicResource Brush.Contents}">
                 <ListBox ItemsSource="{Binding Accounts}"
-                         SelectedItem="{Binding SelectedAccount, Mode=TwoWay}">
+                         SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
+                         Background="Transparent">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="MinHeight" Value="0"/>
+                            <Setter Property="Padding" Value="0"/>
+                        </Style>
+                    </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="models:GitHubAccount">
-                            <Border Padding="12" Background="Transparent">
-                                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
-                                    <Image Source="{Binding AvatarUrl}"
-                                           Width="36" Height="36"
-                                           Grid.RowSpan="2"
-                                           ClipToBounds="True"
-                                           IsVisible="{Binding AvatarUrl, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-
-                                    <StackPanel Grid.Column="1" Grid.RowSpan="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" FontSize="14"/>
+                            <Border Padding="12,10" Background="Transparent">
+                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                    <StackPanel Grid.Column="0" Grid.RowSpan="2" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       Foreground="{DynamicResource Brush.FG1}"
+                                                       FontWeight="Medium"
+                                                       FontSize="14"
+                                                       TextTrimming="CharacterEllipsis"/>
                                             <Border IsVisible="{Binding IsDefault}"
                                                     Padding="6,1"
                                                     CornerRadius="8"
-                                                    Background="{DynamicResource AccentBackground}">
+                                                    Background="{DynamicResource Brush.Badge}">
                                                 <TextBlock Text="{DynamicResource Text.Default}"
                                                            FontSize="10"
-                                                           Foreground="{DynamicResource AccentForeground}"/>
+                                                           Foreground="{DynamicResource Brush.BadgeFG}"/>
                                             </Border>
                                         </StackPanel>
                                         <TextBlock Text="@{Binding Username}"
+                                                   Margin="0,3,0,0"
                                                    FontSize="12"
-                                                   Foreground="{DynamicResource TextBrushSecondary}"/>
+                                                   Foreground="{DynamicResource Brush.FG2}"
+                                                   TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
 
-                                    <Border Grid.Column="2"
+                                    <Border Grid.Column="1"
                                             Grid.RowSpan="2"
                                             VerticalAlignment="Center"
-                                            Padding="8,3"
+                                            Padding="7,2"
                                             CornerRadius="3"
-                                            Background="{DynamicResource AccentBackground}"
-                                            Margin="8,0,0,0">
-                                        <TextBlock Text="{Binding AuthType}"
-                                                   FontSize="11"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource AccentForeground}"/>
+                                            Background="{DynamicResource Brush.Badge}"
+                                            IsVisible="{Binding AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=PersonalAccessToken}">
+                                        <TextBlock Text="PAT"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource Brush.BadgeFG}"/>
+                                    </Border>
+                                    <Border Grid.Column="1"
+                                            Grid.RowSpan="2"
+                                            VerticalAlignment="Center"
+                                            Padding="7,2"
+                                            CornerRadius="3"
+                                            Background="{DynamicResource Brush.Badge}"
+                                            IsVisible="{Binding AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=SSHKey}">
+                                        <TextBlock Text="SSH"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource Brush.BadgeFG}"/>
                                     </Border>
                                 </Grid>
                             </Border>
@@ -97,38 +124,182 @@
                 </ListBox>
             </Border>
 
-            <StackPanel Grid.Row="1"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        Spacing="8"
-                        Margin="0,8,0,0"
-                        IsVisible="{Binding SelectedAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <Button Content="Edit"
-                        Command="{Binding BeginEditCommand}"
-                        CommandParameter="{Binding SelectedAccount}"/>
-                <Button Content="Set default"
-                        Command="{Binding SetAsDefaultCommand}"
-                        CommandParameter="{Binding SelectedAccount}"/>
-                <Button Content="Delete"
-                        Command="{Binding DeleteAccountCommand}"
-                        CommandParameter="{Binding SelectedAccount}"/>
-            </StackPanel>
+            <!-- Empty account state -->
+            <Border Grid.Column="0"
+                    IsVisible="{Binding ShowEmptyState}"
+                    BorderBrush="{DynamicResource Brush.Border2}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Background="{DynamicResource Brush.Contents}">
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="12"
+                            Margin="24">
+                    <Path Width="42" Height="42" Data="{StaticResource Icons.Remotes}" Fill="{DynamicResource Brush.FG2}"/>
+                    <TextBlock Text="{DynamicResource Text.GitHubAccounts.NoAccounts}"
+                               FontSize="15"
+                               Foreground="{DynamicResource Brush.FG2}"
+                               TextAlignment="Center"/>
+                    <Button Classes="flat"
+                            Padding="16,6"
+                            Foreground="{DynamicResource Brush.FG1}"
+                            Background="{DynamicResource Brush.FlatButton.Background}"
+                            Content="{DynamicResource Text.GitHubAccounts.AddAccount}"
+                            Command="{Binding BeginAddCommand}"/>
+                </StackPanel>
+            </Border>
 
-            <!-- Empty state shares the list area instead of overlapping the editor. -->
-            <StackPanel Grid.Row="0"
-                        IsVisible="{Binding ShowEmptyState}"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Center"
-                        Spacing="16">
-                <Path Width="48" Height="48" Data="{StaticResource Icons.Remotes}" Fill="{DynamicResource Brush.FG2}"/>
-                <TextBlock Text="{DynamicResource Text.GitHubAccounts.NoAccounts}"
-                           FontSize="16"
-                           Foreground="{DynamicResource TextBrushSecondary}"/>
-                <Button Content="{DynamicResource Text.GitHubAccounts.AddAccount}"
-                        Command="{Binding BeginAddCommand}"
-                        Theme="{StaticResource AccentButton}"
-                        Padding="24,10"/>
-            </StackPanel>
+            <!-- Selected account details -->
+            <Border Grid.Column="1"
+                    IsVisible="{Binding SelectedAccount, Converter={x:Static ObjectConverters.IsNotNull}}"
+                    BorderBrush="{DynamicResource Brush.Border2}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Background="{DynamicResource Brush.Contents}"
+                    Padding="16">
+                <Grid RowDefinitions="Auto,1,*,1,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding SelectedAccount.DisplayName}"
+                                           Foreground="{DynamicResource Brush.FG1}"
+                                           FontWeight="SemiBold"
+                                           FontSize="18"/>
+                                <Border IsVisible="{Binding SelectedAccount.IsDefault}"
+                                        Padding="7,2"
+                                        CornerRadius="8"
+                                        Background="{DynamicResource Brush.Badge}">
+                                    <TextBlock Text="{DynamicResource Text.Default}"
+                                               FontSize="10"
+                                               Foreground="{DynamicResource Brush.BadgeFG}"/>
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="@{Binding SelectedAccount.Username}"
+                                       Margin="0,3,0,0"
+                                       Foreground="{DynamicResource Brush.FG2}"
+                                       FontSize="12"/>
+                        </StackPanel>
+
+                        <Border Grid.Column="1"
+                                VerticalAlignment="Top"
+                                Padding="8,3"
+                                CornerRadius="3"
+                                Background="{DynamicResource Brush.Badge}"
+                                IsVisible="{Binding SelectedAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=PersonalAccessToken}">
+                            <TextBlock Text="Personal access token"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource Brush.BadgeFG}"/>
+                        </Border>
+                        <Border Grid.Column="1"
+                                VerticalAlignment="Top"
+                                Padding="8,3"
+                                CornerRadius="3"
+                                Background="{DynamicResource Brush.Badge}"
+                                IsVisible="{Binding SelectedAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=SSHKey}">
+                            <TextBlock Text="SSH key"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource Brush.BadgeFG}"/>
+                        </Border>
+                    </Grid>
+
+                    <Rectangle Grid.Row="1" Height="1" Margin="0,14" Fill="{DynamicResource Brush.Border2}"/>
+
+                    <Grid Grid.Row="2"
+                          ColumnDefinitions="120,*"
+                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                          RowSpacing="10">
+                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                   Text="{DynamicResource Text.GitHubAccounts.Name}"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                   Text="{Binding SelectedAccount.Name}"
+                                   Foreground="{DynamicResource Brush.FG1}"
+                                   TextWrapping="Wrap"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                   Text="{DynamicResource Text.GitHubAccounts.Username}"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1"
+                                   Text="{Binding SelectedAccount.Username}"
+                                   Foreground="{DynamicResource Brush.FG1}"
+                                   TextWrapping="Wrap"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                   Text="{DynamicResource Text.GitHubAccounts.Email}"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1"
+                                   Text="{Binding SelectedAccount.Email}"
+                                   Foreground="{DynamicResource Brush.FG1}"
+                                   TextWrapping="Wrap"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                   Text="Credential"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <StackPanel Grid.Row="3" Grid.Column="1"
+                                    IsVisible="{Binding SelectedAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=PersonalAccessToken}">
+                            <TextBlock Text="Stored securely"
+                                       Foreground="{DynamicResource Brush.FG1}"
+                                       IsVisible="{Binding SelectedAccount.HasValidCredentials}"/>
+                            <TextBlock Text="Missing token"
+                                       Foreground="{DynamicResource Brush.FG2}"
+                                       IsVisible="{Binding !SelectedAccount.HasValidCredentials}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Grid.Column="1"
+                                    IsVisible="{Binding SelectedAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=SSHKey}">
+                            <TextBlock Text="{Binding SelectedAccount.SSHKeyPath}"
+                                       Foreground="{DynamicResource Brush.FG1}"
+                                       FontFamily="{DynamicResource Fonts.Monospace}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="SSH key path is missing"
+                                       Foreground="{DynamicResource Brush.FG2}"
+                                       IsVisible="{Binding !SelectedAccount.HasValidCredentials}"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0"
+                                   Text="Created"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1"
+                                   Text="{Binding SelectedAccount.CreatedAt}"
+                                   Foreground="{DynamicResource Brush.FG1}"/>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0"
+                                   Text="Updated"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1"
+                                   Text="{Binding SelectedAccount.UpdatedAt}"
+                                   Foreground="{DynamicResource Brush.FG1}"/>
+                    </Grid>
+
+                    <Rectangle Grid.Row="3" Height="1" Margin="0,14" Fill="{DynamicResource Brush.Border2}"/>
+
+                    <StackPanel Grid.Row="4"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Spacing="8">
+                        <Button Classes="flat"
+                                Padding="12,5"
+                                Foreground="{DynamicResource Brush.FG1}"
+                                Background="{DynamicResource Brush.FlatButton.Background}"
+                                Content="Edit"
+                                Command="{Binding BeginEditCommand}"
+                                CommandParameter="{Binding SelectedAccount}"/>
+                        <Button Classes="flat"
+                                Padding="12,5"
+                                Foreground="{DynamicResource Brush.FG1}"
+                                Background="{DynamicResource Brush.FlatButton.Background}"
+                                Content="Set default"
+                                Command="{Binding SetAsDefaultCommand}"
+                                CommandParameter="{Binding SelectedAccount}"/>
+                        <Button Classes="flat"
+                                Padding="12,5"
+                                Foreground="{DynamicResource Brush.FG1}"
+                                Background="{DynamicResource Brush.FlatButton.Background}"
+                                Content="Delete"
+                                Command="{Binding DeleteAccountCommand}"
+                                CommandParameter="{Binding SelectedAccount}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- Edit form -->
@@ -136,61 +307,82 @@
                 IsVisible="{Binding IsEditing}"
                 Margin="0,16,0,0"
                 Padding="16"
-                Background="{DynamicResource CardBackground}"
-                BorderBrush="{DynamicResource BorderBrush}"
+                Background="{DynamicResource Brush.Contents}"
+                BorderBrush="{DynamicResource Brush.Border2}"
                 BorderThickness="1"
                 CornerRadius="4">
             <StackPanel Spacing="14">
-                <TextBlock Text="{Binding EditingTitle}" FontSize="16" FontWeight="Medium"/>
+                <TextBlock Text="{Binding EditingTitle}"
+                           Foreground="{DynamicResource Brush.FG1}"
+                           FontSize="16"
+                           FontWeight="Medium"/>
 
                 <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
                     <TextBlock Grid.Row="0" Grid.Column="0"
                                Text="{DynamicResource Text.GitHubAccounts.Name}"
+                               Foreground="{DynamicResource Brush.FG2}"
                                VerticalAlignment="Center" TextAlignment="Right"/>
                     <TextBox Grid.Row="0" Grid.Column="1"
+                             Foreground="{DynamicResource Brush.FG1}"
                              Text="{Binding EditingAccount.Name, Mode=TwoWay}"
                              Watermark="{DynamicResource Text.GitHubAccounts.AccountNameWatermark}"/>
 
                     <TextBlock Grid.Row="1" Grid.Column="0"
                                Text="{DynamicResource Text.GitHubAccounts.Username}"
+                               Foreground="{DynamicResource Brush.FG2}"
                                VerticalAlignment="Center" TextAlignment="Right"/>
                     <TextBox Grid.Row="1" Grid.Column="1"
+                             Foreground="{DynamicResource Brush.FG1}"
                              Text="{Binding EditingAccount.Username, Mode=TwoWay}"
                              Watermark="github-username"/>
 
                     <TextBlock Grid.Row="2" Grid.Column="0"
                                Text="{DynamicResource Text.GitHubAccounts.Email}"
+                               Foreground="{DynamicResource Brush.FG2}"
                                VerticalAlignment="Center" TextAlignment="Right"/>
                     <TextBox Grid.Row="2" Grid.Column="1"
+                             Foreground="{DynamicResource Brush.FG1}"
                              Text="{Binding EditingAccount.Email, Mode=TwoWay}"
                              Watermark="user@example.com"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0"
                                Text="{DynamicResource Text.GitHubAccounts.AuthType}"
+                               Foreground="{DynamicResource Brush.FG2}"
                                VerticalAlignment="Center" TextAlignment="Right"/>
                     <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="16">
                         <RadioButton Content="{DynamicResource Text.GitHubAccounts.PAT}"
+                                     Foreground="{DynamicResource Brush.FG1}"
                                      GroupName="AuthType"
                                      IsChecked="{Binding EditingAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=PersonalAccessToken}"/>
                         <RadioButton Content="{DynamicResource Text.GitHubAccounts.SSHKey}"
+                                     Foreground="{DynamicResource Brush.FG1}"
                                      GroupName="AuthType"
                                      IsChecked="{Binding EditingAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=SSHKey}"/>
                     </StackPanel>
 
                     <TextBlock Grid.Row="4" Grid.Column="0"
                                Text="{DynamicResource Text.GitHubAccounts.TokenOrKey}"
+                               Foreground="{DynamicResource Brush.FG2}"
                                VerticalAlignment="Center" TextAlignment="Right"/>
                     <Grid Grid.Row="4" Grid.Column="1">
                         <TextBox Text="{Binding NewToken, Mode=TwoWay}"
+                                 Foreground="{DynamicResource Brush.FG1}"
                                  Watermark="{DynamicResource Text.GitHubAccounts.PATWatermark}"
                                  PasswordChar="•"
                                  IsVisible="{Binding EditingAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=PersonalAccessToken}"/>
                         <Grid ColumnDefinitions="*,Auto"
                               IsVisible="{Binding EditingAccount.AuthType, Converter={StaticResource EnumToBool}, ConverterParameter=SSHKey}">
                             <TextBox Grid.Column="0"
+                                     Foreground="{DynamicResource Brush.FG1}"
                                      Text="{Binding EditingAccount.SSHKeyPath, Mode=TwoWay}"
                                      Watermark="{DynamicResource Text.GitHubAccounts.SSHKeyPathWatermark}"/>
-                            <Button Grid.Column="1" Margin="8,0,0,0" Padding="10,0" Click="BrowseSSHKey">
+                            <Button Grid.Column="1"
+                                    Classes="flat"
+                                    Margin="8,0,0,0"
+                                    Padding="10,0"
+                                    Foreground="{DynamicResource Brush.FG1}"
+                                    Background="{DynamicResource Brush.FlatButton.Background}"
+                                    Click="BrowseSSHKey">
                                 <Path Width="14" Height="14" Data="{StaticResource Icons.Folder.Open}" Fill="{DynamicResource Brush.FG1}"/>
                             </Button>
                         </Grid>
@@ -199,15 +391,18 @@
 
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="122,4,0,0">
                     <Button Grid.Column="0"
+                            Classes="flat"
+                            Padding="12,5"
+                            Foreground="{DynamicResource Brush.FG1}"
+                            Background="{DynamicResource Brush.FlatButton.Background}"
                             Content="{DynamicResource Text.GitHubAccounts.TestConnection}"
                             Command="{Binding TestConnectionCommand}"
-                            IsEnabled="{Binding !IsTesting}"
-                            Theme="{StaticResource AccentButton}"/>
+                            IsEnabled="{Binding !IsTesting}"/>
                     <TextBlock Grid.Column="1"
                                Margin="12,0,0,0"
                                Text="{Binding TestResult}"
                                VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextBrushSecondary}"
+                               Foreground="{DynamicResource Brush.FG2}"
                                FontSize="12"
                                TextWrapping="Wrap"/>
                     <ProgressBar Grid.Column="2"
@@ -218,8 +413,18 @@
                 </Grid>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,4,0,0">
-                    <Button Content="{DynamicResource Text.GitHubAccounts.Cancel}" Command="{Binding CancelEditCommand}"/>
-                    <Button Content="{DynamicResource Text.GitHubAccounts.Save}" Command="{Binding SaveEditCommand}" Theme="{StaticResource AccentButton}"/>
+                    <Button Classes="flat"
+                            Padding="12,5"
+                            Foreground="{DynamicResource Brush.FG1}"
+                            Background="{DynamicResource Brush.FlatButton.Background}"
+                            Content="{DynamicResource Text.GitHubAccounts.Cancel}"
+                            Command="{Binding CancelEditCommand}"/>
+                    <Button Classes="flat"
+                            Padding="12,5"
+                            Foreground="{DynamicResource Brush.FG1}"
+                            Background="{DynamicResource Brush.FlatButton.Background}"
+                            Content="{DynamicResource Text.GitHubAccounts.Save}"
+                            Command="{Binding SaveEditCommand}"/>
                 </StackPanel>
             </StackPanel>
         </Border>
