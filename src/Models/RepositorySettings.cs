@@ -54,6 +54,29 @@ namespace SourceGit.Models
             set;
         } = Guid.Empty;
 
+        /// <summary>
+        /// True when the user explicitly selected an account for this repository,
+        /// false when the binding was produced by rules/auto-detection, and null for
+        /// bindings created by older versions where the provenance is unknown.
+        /// </summary>
+        public bool? GitHubAccountIsExplicit
+        {
+            get;
+            set;
+        } = null;
+
+        public string GitHubAccountBindingReason
+        {
+            get;
+            set;
+        } = string.Empty;
+
+        public string GitHubAccountBindingRemote
+        {
+            get;
+            set;
+        } = string.Empty;
+
         public AvaloniaList<CommitTemplate> CommitTemplates
         {
             get;
