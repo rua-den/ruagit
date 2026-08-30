@@ -140,6 +140,7 @@ namespace SourceGit.ViewModels
         {
             var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(path, parent, moveNode);
             await node.UpdateStatusAsync(false, null);
+            await Services.GitHubAuthResolver.ResolveForRepositoryAsync(path);
 
             if (open)
                 node.Open();
