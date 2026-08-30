@@ -148,7 +148,10 @@
                             IsVisible="{Binding !IsRepository}"/>
 
               <StackPanel Grid.Column="2" Orientation="Horizontal" ClipToBounds="True">
-                <TextBlock VerticalAlignment="Center" Text="{Binding Name}"/>
+                <TextBlock VerticalAlignment="Center"
+                           Text="{Binding Name}"
+                           Foreground="{DynamicResource Brush.FG1}"
+                           FontWeight="Medium"/>
                 <TextBlock Margin="4,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Brush.FG2}" Text="{Binding Id, StringFormat=({0}), Converter={x:Static c:PathConverters.RelativeToHome}}">
                   <TextBlock.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -166,20 +169,30 @@
 
               <!-- GitHub Account Badge -->
               <Border Grid.Column="3"
-                      Margin="6,0,0,0"
+                      Margin="8,0,2,0"
                       Padding="7,2"
                       CornerRadius="4"
-                      BorderThickness="1"
-                      BorderBrush="{DynamicResource Brush.Border1}"
-                      Background="{DynamicResource Brush.Badge}"
+                      Background="{DynamicResource Brush.FG1}"
                       IsVisible="{Binding BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                  <Path Width="12" Height="12" Data="{StaticResource Icons.GitHub}" Fill="{DynamicResource Brush.BadgeFG}"/>
+                  <Path Width="12" Height="12"
+                        Data="{StaticResource Icons.GitHub}"
+                        Fill="{DynamicResource Brush.Window}"/>
                   <TextBlock Text="{Binding BoundGitHubAccount.DisplayName}"
                              FontSize="11"
                              FontWeight="SemiBold"
-                             Foreground="{DynamicResource Brush.BadgeFG}"
+                             Foreground="{DynamicResource Brush.Window}"
+                             MaxWidth="140"
+                             TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding BoundGitHubAccount.Username}"
+                             FontSize="10"
+                             Foreground="{DynamicResource Brush.Window}"
+                             Opacity="0.78"
+                             MaxWidth="100"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"
+                             IsVisible="{Binding BoundGitHubAccount.Username, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                 </StackPanel>
               </Border>
 
