@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace SourceGit.Services
 {
@@ -68,12 +69,12 @@ namespace SourceGit.Services
         /// <summary>
         /// Resolves which configured GitHub account is used by this repository.
         /// Priority: 1) explicit binding in sourcegit.settings, 2) remote URL owner
-        /// matching a configured account's username, 3) the only valid configured
-        /// account for a GitHub remote, 4) for SSH remotes, the only configured
-        /// SSH-key account. Deterministic detections are persisted so later git
-        /// operations do not have to rediscover credentials.
+        /// matching a protocol-compatible configured account, 3) the only valid
+        /// protocol-compatible account for a GitHub remote, 4) for SSH remotes, the
+        /// only configured SSH-key account. Deterministic detections are persisted so
+        /// later git operations do not have to rediscover credentials.
         /// </summary>
-        public static async System.Threading.Tasks.Task<Models.GitHubAccount> DetectForRepositoryAsync(string repoPath)
+        public static async Task<Models.GitHubAccount> DetectForRepositoryAsync(string repoPath)
         {
             var pref = ViewModels.Preferences.Instance;
             if (pref.GitHubAccounts.Count == 0)
@@ -87,11 +88,10 @@ namespace SourceGit.Services
             try
             {
                 var remotes = await new Commands.QueryRemotes(repoPath).GetResultAsync().ConfigureAwait(false);
-                var githubRemotes = remotes.Where(r =>
-                    string.Equals(GetRemoteHost(r.URL), "github.com", StringComparison.OrdinalIgnoreCase)).ToList();
+                var githubRemotes = remotes.Where(r => IsGitHubRemote(r.URL)).ToList();
 
-                // 2. Match remote URL owner against account usernames. Collect matches
-                // first so multiple GitHub remotes cannot silently pick different accounts.
+                // 2. Match remote URL owner against account usernames, but never bind
+                // an account whose authentication mechanism cannot be used by the URL.
                 Models.GitHubAccount matched = null;
                 var ambiguous = false;
                 foreach (var remote in githubRemotes)
@@ -100,9 +100,11 @@ namespace SourceGit.Services
                     if (string.IsNullOrEmpty(owner))
                         continue;
 
+                    var isSsh = IsSshRemote(remote.URL);
                     foreach (var acc in pref.GitHubAccounts)
                     {
-                        if (!string.Equals(acc.Username, owner, StringComparison.OrdinalIgnoreCase))
+                        if (!IsAccountCompatible(acc, isSsh) ||
+                            !string.Equals(acc.Username, owner, StringComparison.OrdinalIgnoreCase))
                             continue;
 
                         if (matched != null && matched.Id != acc.Id)
@@ -125,37 +127,42 @@ namespace SourceGit.Services
                 }
 
                 // 3. Organization repositories cannot be mapped from URL owner to the
-                // personal account that has access. If exactly one usable account exists,
-                // the choice is deterministic and safe to persist.
+                // personal account that has access. If all GitHub remotes use the same
+                // protocol and exactly one compatible account exists, the choice is
+                // deterministic and safe to persist.
                 if (githubRemotes.Count > 0)
                 {
-                    Models.GitHubAccount singleValid = null;
-                    foreach (var acc in pref.GitHubAccounts)
+                    var allSsh = githubRemotes.All(r => IsSshRemote(r.URL));
+                    var allHttps = githubRemotes.All(r => !IsSshRemote(r.URL));
+                    if (allSsh || allHttps)
                     {
-                        if (!acc.HasValidCredentials)
-                            continue;
-
-                        if (singleValid != null)
+                        Models.GitHubAccount singleCompatible = null;
+                        foreach (var acc in pref.GitHubAccounts)
                         {
-                            singleValid = null;
-                            break;
+                            if (!acc.HasValidCredentials || !IsAccountCompatible(acc, allSsh))
+                                continue;
+
+                            if (singleCompatible != null)
+                            {
+                                singleCompatible = null;
+                                break;
+                            }
+
+                            singleCompatible = acc;
                         }
 
-                        singleValid = acc;
-                    }
-
-                    if (singleValid != null)
-                    {
-                        BindRepository(repoPath, singleValid);
-                        return singleValid;
+                        if (singleCompatible != null)
+                        {
+                            BindRepository(repoPath, singleCompatible);
+                            return singleCompatible;
+                        }
                     }
                 }
 
-                // 4. SSH remotes: when exactly one SSH-key account is configured,
-                // assume it. This also covers aliases that ultimately point at GitHub.
-                var hasSshRemote = remotes.Exists(r =>
-                    r.URL.StartsWith("git@", StringComparison.OrdinalIgnoreCase) ||
-                    r.URL.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase));
+                // 4. SSH aliases may not be recognizable as github.com from the URL.
+                // When an SSH remote exists and exactly one SSH account is configured,
+                // it is still safe to use that account.
+                var hasSshRemote = remotes.Exists(r => IsSshRemote(r.URL));
                 if (hasSshRemote)
                 {
                     Models.GitHubAccount singleSsh = null;
@@ -184,6 +191,33 @@ namespace SourceGit.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Backfills repository bindings from local configuration only. This intentionally
+        /// does not scan credential stores or query GitHub, so it is safe to run during
+        /// startup without making application launch depend on the network.
+        /// </summary>
+        public static async Task WarmupRepositoryBindingsAsync(IEnumerable<ViewModels.RepositoryNode> nodes)
+        {
+            if (ViewModels.Preferences.Instance.GitHubAccounts.Count == 0 || nodes == null)
+                return;
+
+            foreach (var node in nodes)
+            {
+                if (node == null)
+                    continue;
+
+                if (node.IsRepository)
+                {
+                    if (Directory.Exists(node.Id))
+                        await DetectForRepositoryAsync(node.Id).ConfigureAwait(false);
+                }
+                else if (node.SubNodes.Count > 0)
+                {
+                    await WarmupRepositoryBindingsAsync(node.SubNodes).ConfigureAwait(false);
+                }
+            }
         }
 
         public static string ExtractGitHubOwner(string url)
@@ -275,6 +309,28 @@ namespace SourceGit.Services
             }
 
             return results;
+        }
+
+        private static bool IsGitHubRemote(string url)
+        {
+            return !string.IsNullOrEmpty(ExtractGitHubOwner(url)) ||
+                   string.Equals(GetRemoteHost(url), "github.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSshRemote(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return false;
+
+            return url.StartsWith("git@", StringComparison.OrdinalIgnoreCase) ||
+                   url.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsAccountCompatible(Models.GitHubAccount account, bool sshRemote)
+        {
+            return sshRemote
+                ? account.AuthType == Models.GitHubAuthType.SSHKey
+                : account.AuthType == Models.GitHubAuthType.PersonalAccessToken;
         }
 
         private static void ScanGitHubCli(Action<Models.GitHubCredentialEntry> add)
