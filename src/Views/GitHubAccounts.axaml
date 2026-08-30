@@ -206,7 +206,7 @@
 
                     <Grid Grid.Row="2"
                           ColumnDefinitions="120,*"
-                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                          RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                           RowSpacing="10">
                         <TextBlock Grid.Row="0" Grid.Column="0"
                                    Text="{DynamicResource Text.GitHubAccounts.Name}"
@@ -256,16 +256,30 @@
                         </StackPanel>
 
                         <TextBlock Grid.Row="4" Grid.Column="0"
+                                   Text="Auth rules"
+                                   Foreground="{DynamicResource Brush.FG2}"/>
+                        <StackPanel Grid.Row="4" Grid.Column="1">
+                            <TextBlock Text="{Binding SelectedAccount.MatchRules}"
+                                       Foreground="{DynamicResource Brush.FG1}"
+                                       FontFamily="{DynamicResource Fonts.Monospace}"
+                                       TextWrapping="Wrap"
+                                       IsVisible="{Binding SelectedAccount.HasMatchRules}"/>
+                            <TextBlock Text="No automatic rules"
+                                       Foreground="{DynamicResource Brush.FG2}"
+                                       IsVisible="{Binding !SelectedAccount.HasMatchRules}"/>
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0"
                                    Text="Created"
                                    Foreground="{DynamicResource Brush.FG2}"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1"
+                        <TextBlock Grid.Row="5" Grid.Column="1"
                                    Text="{Binding SelectedAccount.CreatedAt}"
                                    Foreground="{DynamicResource Brush.FG1}"/>
 
-                        <TextBlock Grid.Row="5" Grid.Column="0"
+                        <TextBlock Grid.Row="6" Grid.Column="0"
                                    Text="Updated"
                                    Foreground="{DynamicResource Brush.FG2}"/>
-                        <TextBlock Grid.Row="5" Grid.Column="1"
+                        <TextBlock Grid.Row="6" Grid.Column="1"
                                    Text="{Binding SelectedAccount.UpdatedAt}"
                                    Foreground="{DynamicResource Brush.FG1}"/>
                     </Grid>
@@ -317,7 +331,7 @@
                            FontSize="16"
                            FontWeight="Medium"/>
 
-                <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
+                <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="10" ColumnSpacing="12">
                     <TextBlock Grid.Row="0" Grid.Column="0"
                                Text="{DynamicResource Text.GitHubAccounts.Name}"
                                Foreground="{DynamicResource Brush.FG2}"
@@ -387,6 +401,22 @@
                             </Button>
                         </Grid>
                     </Grid>
+
+                    <TextBlock Grid.Row="5" Grid.Column="0"
+                               Text="Auth rules"
+                               Foreground="{DynamicResource Brush.FG2}"
+                               VerticalAlignment="Top"
+                               Margin="0,5,0,0"
+                               TextAlignment="Right"/>
+                    <TextBox Grid.Row="5" Grid.Column="1"
+                             MinHeight="70"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             Foreground="{DynamicResource Brush.FG1}"
+                             FontFamily="{DynamicResource Fonts.Monospace}"
+                             Text="{Binding EditingAccount.MatchRules, Mode=TwoWay}"
+                             Watermark="owner:company&#10;remote:*github.com/company/*&#10;path:~/work/**"
+                             ToolTip.Tip="One rule per line. Supported prefixes: owner:, remote:, path:. Manual repository bindings always win."/>
                 </Grid>
 
                 <Grid ColumnDefinitions="Auto,*,Auto" Margin="122,4,0,0">
