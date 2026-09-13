@@ -22,17 +22,34 @@ namespace SourceGit.Commands
                 .Append(branch);
 
             Args = builder.ToString();
-            ApplyGitHubCredential(FindBoundGitHubAccount());
+            ResolveBoundCredential();
         }
 
         public async Task<bool> RunAsync()
         {
+            GitHubUsername = string.Empty;
+            GitHubToken = string.Empty;
+
             var configuredKey = await new Config(WorkingDirectory).GetAsync($"remote.{_remote}.sshkey").ConfigureAwait(false);
             if (!string.IsNullOrEmpty(configuredKey))
+            {
                 SSHKey = configuredKey;
-            else if (string.IsNullOrEmpty(SSHKey))
-                ApplyGitHubCredential(await Services.GitHubCredential.DetectForRepositoryAsync(WorkingDirectory).ConfigureAwait(false));
+            }
+            else
+            {
+                SSHKey = string.Empty;
+                var resolution = await Services.GitHubAuthResolver.ResolveForRepositoryAsync(WorkingDirectory).ConfigureAwait(false);
+                ApplyGitHubCredential(resolution.Account);
+            }
+
             return await ExecAsync().ConfigureAwait(false);
+        }
+
+        private void ResolveBoundCredential()
+        {
+            var account = FindBoundGitHubAccount();
+            if (account?.AuthType == Models.GitHubAuthType.PersonalAccessToken)
+                ApplyGitHubCredential(account);
         }
 
         private readonly string _remote;
