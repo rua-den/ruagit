@@ -167,20 +167,20 @@
               <!-- GitHub Account Badge -->
               <Border Grid.Column="3"
                       Margin="6,0,0,0"
-                      Padding="6,1"
+                      Padding="7,1"
                       CornerRadius="4"
-                      Background="{DynamicResource Brush.Badge}"
-                      BorderBrush="{DynamicResource Brush.Border2}"
+                      Background="{DynamicResource Brush.FG1}"
+                      BorderBrush="{DynamicResource Brush.FG1}"
                       BorderThickness="1"
                       IsVisible="{Binding BoundGitHubAccount, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                   <Path Width="12" Height="12"
                         Data="{StaticResource Icons.GitHub}"
-                        Fill="{DynamicResource Brush.BadgeFG}"/>
+                        Fill="{DynamicResource Brush.Window}"/>
                   <TextBlock Text="{Binding BoundGitHubAccountDisplay}"
-                             FontSize="11"
-                             FontWeight="SemiBold"
-                             Foreground="{DynamicResource Brush.BadgeFG}"
+                             FontSize="12"
+                             FontWeight="Bold"
+                             Foreground="{DynamicResource Brush.Window}"
                              MaxWidth="180"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center"/>
@@ -214,11 +214,11 @@
                                  IsVisible="{Binding IsTrackingStatusVisible}"/>
 
                       <Border Margin="3,0,0,0"
-                                      BorderThickness="1"
-                                      BorderBrush="{DynamicResource Brush.FG2}"
-                                      Height="20"
-                                      CornerRadius="4"
-                                      Padding="4,0">
+                              BorderThickness="1"
+                              BorderBrush="{DynamicResource Brush.FG2}"
+                              Height="20"
+                              CornerRadius="4"
+                              Padding="4,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                           <Path Width="12" Height="12" Data="{StaticResource Icons.Branch}"/>
                           <TextBlock Margin="2,0,0,0" Text="{Binding CurrentBranch}" FontSize="12"/>
