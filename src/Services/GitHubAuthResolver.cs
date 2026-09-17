@@ -4,13 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 
 namespace SourceGit.Services
 {
     /// <summary>
     /// Resolves repository-to-account bindings while keeping the reason for the
     /// decision inspectable. Explicit user bindings always win. Automatic rules
-    /// are evaluated before the legacy GitHub remote/account heuristic.
+    /// and the effective SSH identity are evaluated before the legacy GitHub
+    /// remote/account heuristic.
     /// </summary>
     public static class GitHubAuthResolver
     {
@@ -76,6 +78,7 @@ namespace SourceGit.Services
             {
                 true => "Manual",
                 false when settings.GitHubAccountBindingReason.StartsWith("Rule ", StringComparison.OrdinalIgnoreCase) => "Rule",
+                false when settings.GitHubAccountBindingReason.StartsWith("SSH config ", StringComparison.OrdinalIgnoreCase) => "SSH config",
                 false => "Auto-detected",
                 _ => "Legacy binding",
             };
@@ -119,9 +122,10 @@ namespace SourceGit.Services
                 ? null
                 : pref.GetGitHubAccount(settings.GitHubAccountId);
 
-            // Preserve explicit bindings and legacy bindings whose provenance is unknown.
-            // This avoids silently replacing a selection made before provenance tracking existed.
-            if (current != null && settings.GitHubAccountIsExplicit != false)
+            // Only a binding explicitly selected in the provenance-aware UI is
+            // immutable. Legacy bindings are allowed to migrate when a stronger
+            // rule/SSH signal proves which identity the remote actually uses.
+            if (current != null && settings.GitHubAccountIsExplicit == true)
                 return InspectRepository(repoPath);
 
             List<Models.Remote> remotes;
@@ -135,6 +139,8 @@ namespace SourceGit.Services
             }
 
             var preferredRemote = SelectPreferredRemote(settings, remotes);
+
+            // 1. Explicit account rules are the strongest automatic signal.
             var matches = FindRuleMatches(repoPath, pref.GitHubAccounts, remotes, preferredRemote);
             var accounts = matches
                 .GroupBy(x => x.Account.Id)
@@ -155,14 +161,49 @@ namespace SourceGit.Services
                 return InspectRepository(repoPath);
             }
 
-            // Clear only an old automatic binding before invoking the existing heuristic;
-            // otherwise GitHubCredential would immediately return that stored account.
-            if (settings.GitHubAccountIsExplicit == false)
+            // 2. For SSH remotes, ~/.ssh/config is authoritative about the key that
+            // OpenSSH would use. This fixes cases where a global/legacy GitHub account
+            // was selected even though the remote host alias points at another key.
+            var sshMatches = FindSshConfigMatches(pref.GitHubAccounts, remotes);
+            var sshAccounts = sshMatches
+                .GroupBy(x => x.Account.Id)
+                .Select(g => g.First())
+                .ToList();
+
+            if (sshAccounts.Count == 1)
+            {
+                var match = sshAccounts[0];
+                SaveAutomaticBinding(settings, match.Account, $"SSH config IdentityFile {match.IdentityFile}", FormatRemote(match.Remote));
+                return InspectRepository(repoPath);
+            }
+
+            if (sshAccounts.Count > 1)
+            {
+                var names = string.Join(", ", sshAccounts.Select(x => x.Account.DisplayName));
+                SaveUnresolved(settings, $"SSH config matched multiple accounts: {names}", FormatRemote(preferredRemote));
+                return InspectRepository(repoPath);
+            }
+
+            // A legacy binding may have been a deliberate manual selection before we
+            // tracked provenance. Preserve it only when it is compatible with the
+            // repository's current remote protocol. An HTTPS account must not block an
+            // SSH-key account (and vice versa) just because it was stored first.
+            if (current != null && settings.GitHubAccountIsExplicit == null &&
+                (preferredRemote == null || IsCompatible(current, preferredRemote)))
+            {
+                return InspectRepository(repoPath);
+            }
+
+            // Clear an old automatic/incompatible legacy binding before invoking the
+            // existing heuristic; otherwise GitHubCredential would immediately return
+            // the stored account without evaluating the remote again.
+            if (settings.GitHubAccountIsExplicit != true)
             {
                 settings.GitHubAccountId = Guid.Empty;
                 settings.Save();
             }
 
+            // 3. Fall back to the original deterministic owner/protocol heuristic.
             var detected = await GitHubCredential.DetectForRepositoryAsync(repoPath).ConfigureAwait(false);
             if (detected != null)
             {
@@ -170,7 +211,7 @@ namespace SourceGit.Services
                 return InspectRepository(repoPath);
             }
 
-            SaveUnresolved(settings, "No matching auth rule or deterministic GitHub account", FormatRemote(preferredRemote));
+            SaveUnresolved(settings, "No matching auth rule, SSH identity, or deterministic GitHub account", FormatRemote(preferredRemote));
             return InspectRepository(repoPath);
         }
 
@@ -187,7 +228,16 @@ namespace SourceGit.Services
                 if (node.IsRepository)
                 {
                     if (Directory.Exists(node.Id))
-                        await ResolveForRepositoryAsync(node.Id).ConfigureAwait(false);
+                    {
+                        var resolution = await ResolveForRepositoryAsync(node.Id).ConfigureAwait(false);
+                        if (!ReferenceEquals(node.BoundGitHubAccount, resolution.Account))
+                        {
+                            if (Dispatcher.UIThread.CheckAccess())
+                                node.BoundGitHubAccount = resolution.Account;
+                            else
+                                Dispatcher.UIThread.Post(() => node.BoundGitHubAccount = resolution.Account);
+                        }
+                    }
                 }
                 else if (node.SubNodes.Count > 0)
                 {
@@ -201,6 +251,20 @@ namespace SourceGit.Services
             public Models.GitHubAccount Account { get; init; }
             public string Rule { get; init; } = string.Empty;
             public Models.Remote Remote { get; init; }
+        }
+
+        private sealed class SshIdentityMatch
+        {
+            public Models.GitHubAccount Account { get; init; }
+            public Models.Remote Remote { get; init; }
+            public string IdentityFile { get; init; } = string.Empty;
+        }
+
+        private sealed class SshConfigBlock
+        {
+            public List<string> HostPatterns { get; } = [];
+            public string HostName { get; set; } = string.Empty;
+            public List<string> IdentityFiles { get; } = [];
         }
 
         private static List<RuleMatch> FindRuleMatches(
@@ -273,6 +337,185 @@ namespace SourceGit.Services
             return matches;
         }
 
+        private static List<SshIdentityMatch> FindSshConfigMatches(
+            IEnumerable<Models.GitHubAccount> accounts,
+            List<Models.Remote> remotes)
+        {
+            var matches = new List<SshIdentityMatch>();
+            var sshAccounts = accounts
+                .Where(x => x.AuthType == Models.GitHubAuthType.SSHKey && x.HasValidCredentials)
+                .ToList();
+            if (sshAccounts.Count == 0 || remotes == null || remotes.Count == 0)
+                return matches;
+
+            var blocks = ReadSshConfigBlocks();
+            if (blocks.Count == 0)
+                return matches;
+
+            foreach (var remote in remotes)
+            {
+                if (!IsSshRemote(remote.URL))
+                    continue;
+
+                var host = ExtractSshHost(remote.URL);
+                if (string.IsNullOrWhiteSpace(host))
+                    continue;
+
+                var identityFiles = ResolveSshIdentityFiles(host, blocks);
+                foreach (var identityFile in identityFiles)
+                {
+                    foreach (var account in sshAccounts)
+                    {
+                        if (!PathEquals(account.SSHKeyPath, identityFile))
+                            continue;
+
+                        matches.Add(new SshIdentityMatch
+                        {
+                            Account = account,
+                            Remote = remote,
+                            IdentityFile = identityFile,
+                        });
+                    }
+                }
+            }
+
+            return matches;
+        }
+
+        private static List<SshConfigBlock> ReadSshConfigBlocks()
+        {
+            var blocks = new List<SshConfigBlock>();
+            var config = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".ssh", "config");
+            if (!File.Exists(config))
+                return blocks;
+
+            try
+            {
+                // Directives before the first Host block apply globally.
+                var current = new SshConfigBlock();
+                current.HostPatterns.Add("*");
+                blocks.Add(current);
+
+                foreach (var raw in File.ReadLines(config))
+                {
+                    var line = raw.Trim();
+                    if (line.Length == 0 || line.StartsWith('#'))
+                        continue;
+
+                    var separator = line.IndexOfAny([' ', '\t']);
+                    if (separator <= 0)
+                        continue;
+
+                    var key = line[..separator].Trim().ToLowerInvariant();
+                    var value = line[(separator + 1)..].Trim();
+                    if (key == "host")
+                    {
+                        current = new SshConfigBlock();
+                        current.HostPatterns.AddRange(value.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                        blocks.Add(current);
+                    }
+                    else if (key == "hostname")
+                    {
+                        current.HostName = value.Trim('"');
+                    }
+                    else if (key == "identityfile")
+                    {
+                        current.IdentityFiles.Add(value.Trim('"'));
+                    }
+                }
+            }
+            catch
+            {
+                blocks.Clear();
+            }
+
+            return blocks;
+        }
+
+        private static List<string> ResolveSshIdentityFiles(string host, List<SshConfigBlock> blocks)
+        {
+            var identities = new List<string>();
+            var remoteIsGitHub = host.Equals("github.com", StringComparison.OrdinalIgnoreCase);
+
+            foreach (var block in blocks)
+            {
+                if (!MatchesSshHostBlock(host, block.HostPatterns))
+                    continue;
+
+                var targetHost = string.IsNullOrWhiteSpace(block.HostName) ? host : block.HostName;
+                if (!remoteIsGitHub && !targetHost.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (var rawIdentity in block.IdentityFiles)
+                {
+                    var identity = ExpandSshIdentityPath(rawIdentity, host);
+                    if (string.IsNullOrWhiteSpace(identity) || identities.Any(x => PathEquals(x, identity)))
+                        continue;
+                    identities.Add(identity);
+                }
+            }
+
+            return identities;
+        }
+
+        private static bool MatchesSshHostBlock(string host, List<string> patterns)
+        {
+            var positive = false;
+            foreach (var rawPattern in patterns)
+            {
+                if (string.IsNullOrWhiteSpace(rawPattern))
+                    continue;
+
+                var negated = rawPattern[0] == '!';
+                var pattern = negated ? rawPattern[1..] : rawPattern;
+                if (!WildcardMatch(host, pattern))
+                    continue;
+
+                if (negated)
+                    return false;
+                positive = true;
+            }
+
+            return positive;
+        }
+
+        private static string ExtractSshHost(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return string.Empty;
+
+            var value = url.Trim();
+            if (value.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+                    return uri.Host;
+                return string.Empty;
+            }
+
+            var at = value.IndexOf('@');
+            var start = at >= 0 ? at + 1 : 0;
+            var colon = value.IndexOf(':', start);
+            if (colon > start)
+                return value[start..colon];
+
+            var slash = value.IndexOf('/', start);
+            return slash > start ? value[start..slash] : value[start..];
+        }
+
+        private static string ExpandSshIdentityPath(string value, string host)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var expanded = value
+                .Replace("%d", home, StringComparison.Ordinal)
+                .Replace("%h", host, StringComparison.Ordinal);
+            return NormalizePath(ExpandHome(expanded));
+        }
+
         private static Models.Remote SelectPreferredRemote(Models.RepositorySettings settings, List<Models.Remote> remotes)
         {
             if (remotes == null || remotes.Count == 0)
@@ -301,9 +544,16 @@ namespace SourceGit.Services
 
         private static bool IsSshRemote(string url)
         {
-            return !string.IsNullOrWhiteSpace(url) &&
-                   (url.StartsWith("git@", StringComparison.OrdinalIgnoreCase) ||
-                    url.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(url))
+                return false;
+
+            if (url.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Git also accepts SCP-like SSH URLs without an explicit user.
+            var colon = url.IndexOf(':');
+            var slash = url.IndexOf('/');
+            return colon > 0 && (slash < 0 || colon < slash) && !url.Contains("://", StringComparison.Ordinal);
         }
 
         private static bool WildcardMatch(string value, string pattern)
@@ -342,6 +592,12 @@ namespace SourceGit.Services
             {
                 return (value ?? string.Empty).Replace('\\', '/').TrimEnd('/');
             }
+        }
+
+        private static bool PathEquals(string left, string right)
+        {
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            return NormalizePath(left).Equals(NormalizePath(right), comparison);
         }
 
         private static string FormatRemote(Models.Remote remote)

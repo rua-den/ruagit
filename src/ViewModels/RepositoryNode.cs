@@ -182,13 +182,15 @@ namespace SourceGit.ViewModels
                 return;
             }
 
-            // Auto-detect bound GitHub account once per session.
+            // Resolve the bound account through the same rule/SSH-aware path used by
+            // network commands. Running the legacy detector here races startup warmup
+            // and can turn an old automatic binding into the apparent source of truth.
             if (!_boundDetectionDone)
             {
                 _boundDetectionDone = true;
-                var detected = await Services.GitHubCredential.DetectForRepositoryAsync(_id).ConfigureAwait(false);
-                if (!ReferenceEquals(detected, _boundGitHubAccount))
-                    BoundGitHubAccount = detected;
+                var resolution = await Services.GitHubAuthResolver.ResolveForRepositoryAsync(_id).ConfigureAwait(false);
+                if (!ReferenceEquals(resolution.Account, _boundGitHubAccount))
+                    BoundGitHubAccount = resolution.Account;
             }
 
             if (!force)

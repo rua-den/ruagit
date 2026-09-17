@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Avalonia.Collections;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace SourceGit.ViewModels
@@ -33,9 +35,10 @@ namespace SourceGit.ViewModels
         {
             Refresh();
 
-            // Resolve account rules and deterministic GitHub bindings from local
-            // repository config/remotes without depending on network availability.
-            _ = Services.GitHubAuthResolver.WarmupRepositoryBindingsAsync(Preferences.Instance.RepositoryNodes);
+            // Discover locally configured GitHub credentials/SSH identities in the
+            // background, import only new accounts, then resolve repository bindings.
+            // Startup is not blocked and no GitHub API request is required.
+            _ = InitializeGitHubAccountsAsync();
         }
 
         public void Refresh()
@@ -140,7 +143,8 @@ namespace SourceGit.ViewModels
         {
             var node = Preferences.Instance.FindOrAddNodeByRepositoryPath(path, parent, moveNode);
             await node.UpdateStatusAsync(false, null);
-            await Services.GitHubAuthResolver.ResolveForRepositoryAsync(path);
+            var resolution = await Services.GitHubAuthResolver.ResolveForRepositoryAsync(path);
+            node.BoundGitHubAccount = resolution.Account;
 
             if (open)
                 node.Open();
@@ -244,6 +248,87 @@ namespace SourceGit.ViewModels
         {
             Preferences.Instance.MoveNode(from, to, true);
             Refresh();
+        }
+
+        private async Task InitializeGitHubAccountsAsync()
+        {
+            var preferences = Preferences.Instance;
+            var knownAccounts = preferences.GitHubAccounts.ToList();
+            var imported = new List<Models.GitHubAccount>();
+
+            try
+            {
+                var found = await Task.Run(Services.GitHubCredential.ScanLocalStores).ConfigureAwait(false);
+                foreach (var entry in found)
+                {
+                    var isSsh = entry.Source == "ssh";
+                    if (!isSsh && string.IsNullOrWhiteSpace(entry.Username))
+                        continue;
+
+                    var exists = isSsh
+                        ? knownAccounts.Any(a => a.AuthType == Models.GitHubAuthType.SSHKey &&
+                                                string.Equals(a.SSHKeyPath, entry.Secret, StringComparison.OrdinalIgnoreCase))
+                        : knownAccounts.Any(a => a.AuthType == Models.GitHubAuthType.PersonalAccessToken &&
+                                                string.Equals(a.Username, entry.Username, StringComparison.OrdinalIgnoreCase));
+                    if (exists)
+                        continue;
+
+                    var account = new Models.GitHubAccount
+                    {
+                        Name = isSsh
+                            ? (string.IsNullOrEmpty(entry.Alias) ? "SSH Key" : entry.Alias)
+                            : entry.Username,
+                        Username = entry.Username,
+                        AuthType = isSsh ? Models.GitHubAuthType.SSHKey : Models.GitHubAuthType.PersonalAccessToken,
+                    };
+
+                    if (isSsh)
+                        account.SSHKeyPath = entry.Secret;
+                    else
+                        account.Token = entry.Secret;
+
+                    imported.Add(account);
+                    knownAccounts.Add(account);
+                }
+            }
+            catch
+            {
+                // Credential discovery is best-effort. Existing configured accounts
+                // must continue to resolve even if one local credential source fails.
+            }
+
+            if (imported.Count > 0)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    foreach (var account in imported)
+                        preferences.AddGitHubAccount(account, false);
+                    preferences.Save();
+                });
+            }
+
+            await Services.GitHubAuthResolver
+                .WarmupRepositoryBindingsAsync(preferences.RepositoryNodes)
+                .ConfigureAwait(false);
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                RefreshBoundGitHubAccounts(preferences.RepositoryNodes));
+        }
+
+        private static void RefreshBoundGitHubAccounts(List<RepositoryNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                if (node.IsRepository)
+                {
+                    if (Directory.Exists(node.Id))
+                        node.BoundGitHubAccount = Services.GitHubAuthResolver.InspectRepository(node.Id).Account;
+                }
+                else if (node.SubNodes.Count > 0)
+                {
+                    RefreshBoundGitHubAccounts(node.SubNodes);
+                }
+            }
         }
 
         private void ResetVisibility(RepositoryNode node)

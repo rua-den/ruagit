@@ -199,6 +199,20 @@ namespace SourceGit.Views
                 return;
             }
 
+            // Shift+1..9 switches directly to the workspace in the same position.
+            // Do not steal printable !/@/#... input while the user is typing in a text box.
+            if (e.KeyModifiers == KeyModifiers.Shift &&
+                e.Source is not TextBox &&
+                TryGetWorkspaceShortcutIndex(e.Key, out var workspaceIndex))
+            {
+                var workspaces = ViewModels.Preferences.Instance.Workspaces;
+                if (workspaceIndex < workspaces.Count)
+                    vm.SwitchWorkspace(workspaces[workspaceIndex]);
+
+                e.Handled = true;
+                return;
+            }
+
             if (e.KeyModifiers.HasFlag(cmdKey))
             {
                 if (e.Key == Key.W)
@@ -381,7 +395,7 @@ namespace SourceGit.Views
                     icon.Fill = workspace.Brush;
 
                     var item = new MenuItem();
-                    item.Header = workspace.Name;
+                    item.Header = i < 9 ? $"{workspace.Name}    Shift+{i + 1}" : workspace.Name;
                     item.Icon = icon;
                     item.Click += (_, ev) =>
                     {
@@ -436,6 +450,25 @@ namespace SourceGit.Views
             }
 
             e.Handled = true;
+        }
+
+        private static bool TryGetWorkspaceShortcutIndex(Key key, out int index)
+        {
+            index = key switch
+            {
+                Key.D1 or Key.NumPad1 => 0,
+                Key.D2 or Key.NumPad2 => 1,
+                Key.D3 or Key.NumPad3 => 2,
+                Key.D4 or Key.NumPad4 => 3,
+                Key.D5 or Key.NumPad5 => 4,
+                Key.D6 or Key.NumPad6 => 5,
+                Key.D7 or Key.NumPad7 => 6,
+                Key.D8 or Key.NumPad8 => 7,
+                Key.D9 or Key.NumPad9 => 8,
+                _ => -1,
+            };
+
+            return index >= 0;
         }
 
         private GridLength _captionHeight = new(32);
